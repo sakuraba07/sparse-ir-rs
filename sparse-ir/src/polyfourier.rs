@@ -124,8 +124,13 @@ impl<S: StatisticsType> PiecewiseLegendreFT<S> {
 
     /// Create power model for asymptotic behavior
     fn power_model(poly: &PiecewiseLegendrePoly) -> PowerModel {
-        let deriv_x1 = poly.derivs(1.0);
-        let moments = Self::power_moments(&deriv_x1, poly.l);
+        let moments = if poly.symm == 0 {
+            // Parity-less basis: use both boundary derivatives (no (-1)^l assumption).
+            Self::power_moments_twosided(&poly.derivs(1.0), &poly.derivs(-1.0))
+        } else {
+            // Parity-definite basis: unchanged one-sided formula.
+            Self::power_moments(&poly.derivs(1.0), poly.l)
+        };
         PowerModel::new(moments)
     }
 
@@ -143,6 +148,30 @@ impl<S: StatisticsType> PiecewiseLegendreFT<S> {
                 -(statsign * (-1.0_f64).powi(m_f64 as i32) + (-1.0_f64).powi(l)) / 2.0_f64.sqrt();
         }
         moments
+    }
+
+    /// Parity-free asymptotic moments from boundary derivatives at BOTH ends.
+    ///
+    /// `M_m = -( statsign · (-1)^(m+1) · u^(m)(+1) + (-1)^m · u^(m)(-1) ) / sqrt(2)`.
+    /// (The two endpoints carry different sign factors; `derivs[m]` is the order-m derivative.)
+    /// Unlike `power_moments`, this makes no `(-1)^l` parity assumption, so it is
+    /// valid for parity-less (symm == 0) bases. It reduces exactly to
+    /// `power_moments` when the polynomial has definite parity.
+    fn power_moments_twosided(deriv_p: &[f64], deriv_m: &[f64]) -> Vec<f64> {
+        let statsign = match S::STATISTICS {
+            Statistics::Fermionic => -1.0,
+            Statistics::Bosonic => 1.0,
+        };
+        deriv_p
+            .iter()
+            .zip(deriv_m.iter())
+            .enumerate()
+            .map(|(m, (&dp, &dm))| {
+                let sign_p = (-1.0_f64).powi((m + 1) as i32); // x=+1 endpoint (IBP factor)
+                let sign_m = (-1.0_f64).powi(m as i32); // x=-1 endpoint (parity-free)
+                -(statsign * sign_p * dp + sign_m * dm) / 2.0_f64.sqrt()
+            })
+            .collect()
     }
 
     /// Compute the inner Fourier transform (for small frequencies)

@@ -931,3 +931,39 @@ fn separable_nonsymm_basis_legacy_matsubara_panics() {
     // non-centrosymmetric basis rather than return wrong points.
     let _ = basis.default_matsubara_sampling_points(false);
 }
+
+/// The non-centrosymmetric SVE path must label its output polynomials
+/// `symm == 0` (no definite parity). This is the precondition that makes the
+/// PiecewiseLegendreFT guard route asymmetric bases to the exact inner
+/// transform. If this ever regresses to ±1, the Matsubara asymptotic model
+/// would silently produce wrong values at large |n|.
+#[test]
+fn noncentrosymm_sve_polys_are_parityless() {
+    use crate::sve::{TworkType, compute_sve_general};
+
+    let sve = compute_sve_general(
+        SeparableNonsymmKernel::new(),
+        1e-10,
+        None,
+        None,
+        TworkType::Auto,
+    );
+
+    assert!(!sve.s.is_empty(), "SVE produced no singular values");
+    for (l, p) in sve.u.get_polys().iter().enumerate() {
+        assert_eq!(
+            p.symm(),
+            0,
+            "u[{l}] must be parity-less (symm=0), got {}",
+            p.symm()
+        );
+    }
+    for (l, p) in sve.v.get_polys().iter().enumerate() {
+        assert_eq!(
+            p.symm(),
+            0,
+            "v[{l}] must be parity-less (symm=0), got {}",
+            p.symm()
+        );
+    }
+}

@@ -267,3 +267,97 @@ fn test_constant_polynomial_fourier_transform() {
         }
     }
 }
+
+/// A parity-less basis (`symm == 0`, mixing even P0/P2 and odd P1 content) must
+/// get CORRECT Matsubara values from the asymptotic model (giw) at large |n|:
+/// with the two-sided moment formula, the finite-n_asymp giw path agrees with
+/// the exact inner transform. (Before the parity-free model — and after the
+/// symm==0 guard is removed — giw was ~100% wrong here.)
+#[test]
+fn parityless_basis_asymptotic_model_is_correct() {
+    let knots = vec![-1.0, 1.0];
+    // Even (P0, P2) + odd (P1) content on [-1,1] -> no definite parity.
+    let poly = PiecewiseLegendrePoly::new(tensor![[0.5], [0.4], [0.3]], knots, 1, None, 0);
+
+    let exact = FermionicPiecewiseLegendreFT::new(poly.clone(), Fermionic, None); // n_asymp = inf -> inner
+    let asymp = FermionicPiecewiseLegendreFT::new(poly, Fermionic, Some(3.0)); // |n| >= 3 -> giw
+
+    for &n in &[5_i64, 11, 21, 51, 101, 501] {
+        let e = exact.evaluate_at_n(n);
+        let g = asymp.evaluate_at_n(n);
+        let rel = (g - e).norm() / e.norm();
+        assert!(
+            rel < 1e-9,
+            "n={n}: parity-less giw disagrees with exact inner (rel_err={rel:.2e}); \
+             exact={e:?} giw={g:?}"
+        );
+    }
+}
+
+/// A parity-definite basis (`symm == -1`, pure odd P1) must be UNAFFECTED by the
+/// guard: the giw asymptotic model is correct here, so finite-n_asymp values
+/// still match the exact inner transform to asymptotic precision. This proves the
+/// fix did not disable/alter the giw path for the symmetric (IR) case.
+#[test]
+fn parity_definite_basis_still_uses_asymptotic_model() {
+    let knots = vec![-1.0, 1.0];
+    // Pure odd (only P1); l=1 -> (-1)^l = -1 matches odd parity.
+    let poly = PiecewiseLegendrePoly::new(tensor![[0.0], [1.0], [0.0]], knots, 1, None, -1);
+
+    let exact = FermionicPiecewiseLegendreFT::new(poly.clone(), Fermionic, None); // inner
+    let asymp = FermionicPiecewiseLegendreFT::new(poly, Fermionic, Some(3.0)); // giw for |n|>=3
+
+    for &n in &[5_i64, 11, 21, 51, 101, 501] {
+        let e = exact.evaluate_at_n(n);
+        let a = asymp.evaluate_at_n(n);
+        let rel = (a - e).norm() / e.norm();
+        // giw is the asymptotic model: it agrees with inner but not to machine eps.
+        assert!(
+            rel < 1e-9,
+            "n={n}: parity-definite giw diverged from inner (rel_err={rel:.2e})"
+        );
+    }
+}
+
+/// The two-sided moment formula must reduce EXACTLY to the one-sided formula for
+/// a parity-definite polynomial. This locks the algebraic equivalence derived in
+/// the spec, so the symm==0 path cannot silently diverge from the trusted
+/// symmetric path's math.
+#[test]
+fn twosided_reduces_to_onesided_under_parity() {
+    let knots = vec![-1.0, 1.0];
+    // Exercise BOTH parities: odd (P1, symm=-1, l=1) and even (P2, symm=+1, l=2).
+    // The reduction identity depends on (-1)^l, so both branches must be covered
+    // — the sign bug this locks against was parity-dependent.
+    let cases = [
+        (
+            "odd(P1,l=1)",
+            PiecewiseLegendrePoly::new(tensor![[0.0], [1.0], [0.0]], knots.clone(), 1, None, -1),
+        ),
+        (
+            "even(P2,l=2)",
+            PiecewiseLegendrePoly::new(tensor![[0.0], [0.0], [1.0]], knots.clone(), 2, None, 1),
+        ),
+    ];
+
+    for (name, poly) in cases {
+        let dp = poly.derivs(1.0);
+        let dm = poly.derivs(-1.0);
+        let one_sided = FermionicPiecewiseLegendreFT::power_moments(&dp, poly.l);
+        let two_sided = FermionicPiecewiseLegendreFT::power_moments_twosided(&dp, &dm);
+
+        assert_eq!(
+            one_sided.len(),
+            two_sided.len(),
+            "{name}: moment vector lengths differ"
+        );
+        for (m, (&a, &b)) in one_sided.iter().zip(two_sided.iter()).enumerate() {
+            let denom = a.abs().max(1e-300);
+            let rel = (a - b).abs() / denom;
+            assert!(
+                rel < 1e-12,
+                "{name} moment {m}: one_sided={a:.6e} two_sided={b:.6e} rel={rel:.2e}"
+            );
+        }
+    }
+}
