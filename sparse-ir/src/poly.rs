@@ -964,6 +964,57 @@ pub fn default_sampling_points(u: &PiecewiseLegendrePolyVector, l: usize) -> Vec
     x0
 }
 
+/// CPQR-based variant of [`default_sampling_points`].
+///
+/// Instead of using polynomial roots, this builds a dense candidate design
+/// matrix `U_j(x_cand)` (rows = candidate points, columns = the first
+/// `min(l, u.len())` basis functions) and selects the rows that form a
+/// well-conditioned submatrix via column-pivoted QR (the greedy maxvol
+/// strategy in [`crate::cpqr_select`]). Returns the selected points in
+/// `[xmin, xmax]`, sorted ascending.
+///
+/// The legacy [`default_sampling_points`] is intentionally left untouched; this
+/// is an additive path so the existing real/symmetric behavior never changes.
+pub fn default_sampling_points_cpqr(u: &PiecewiseLegendrePolyVector, l: usize) -> Vec<f64> {
+    if (u.xmin() - (-1.0)).abs() > 1e-10 || (u.xmax() - 1.0).abs() > 1e-10 {
+        panic!("Expecting unscaled functions here.");
+    }
+
+    let n_cols = l.min(u.polyvec.len());
+    if n_cols == 0 {
+        return Vec::new();
+    }
+
+    let xmin = u.xmin();
+    let xmax = u.xmax();
+
+    // Dense candidate grid on (xmin, xmax) using first-kind Chebyshev nodes.
+    // These are strictly interior (they never hit the endpoints) and cluster
+    // toward them, matching where orthogonal-polynomial roots concentrate.
+    // Interior nodes also avoid the degeneracy that both domain endpoints would
+    // collapse to the same physical tau under the [-1,1] -> [-β/2,β/2] folding.
+    let n_cand = (20 * n_cols).max(500);
+    let cand: Vec<f64> = (0..n_cand)
+        .map(|k| {
+            let theta = std::f64::consts::PI * ((k as f64) + 0.5) / (n_cand as f64);
+            let cheb = -theta.cos(); // ascending, strictly inside (-1, 1)
+            xmin + 0.5 * (xmax - xmin) * (cheb + 1.0)
+        })
+        .collect();
+
+    // Candidate design matrix: rows = candidate points, columns = basis fns.
+    let mut a = nalgebra::DMatrix::<f64>::zeros(n_cand, n_cols);
+    for (i, &x) in cand.iter().enumerate() {
+        for j in 0..n_cols {
+            a[(i, j)] = u[j].evaluate(x);
+        }
+    }
+
+    let mut idx = crate::cpqr_select::select_sampling_rows_cpqr(&a, n_cols);
+    idx.sort_unstable();
+    idx.into_iter().map(|i| cand[i]).collect()
+}
+
 // IndexMut implementation removed - PiecewiseLegendrePolyVector is designed to be immutable
 // If modification is needed, create a new instance instead
 

@@ -7,6 +7,7 @@
 pub mod basis;
 pub mod basis_trait; // Common trait for basis representations
 pub mod col_piv_qr; // Column-pivoted QR decomposition using nalgebra
+pub mod cpqr_select; // CPQR-based sampling-point selection (cross-interpolation)
 pub mod dlr; // Discrete Lehmann Representation utilities
 pub mod fitters; // Least-squares fitters (real/complex matrices)
 pub mod fpu_check; // FPU state checking for Intel Fortran compatibility

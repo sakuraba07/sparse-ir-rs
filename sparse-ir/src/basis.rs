@@ -6,7 +6,9 @@
 use std::sync::Arc;
 
 use crate::kernel::{CentrosymmKernel, KernelProperties, LogisticKernel};
-use crate::poly::{PiecewiseLegendrePolyVector, default_sampling_points};
+use crate::poly::{
+    PiecewiseLegendrePolyVector, default_sampling_points, default_sampling_points_cpqr,
+};
 use crate::polyfourier::PiecewiseLegendreFTVector;
 use crate::sve::{SVEResult, TworkType, compute_sve};
 use crate::traits::{Bosonic, Fermionic, StatisticsType};
@@ -365,6 +367,98 @@ where
             .collect();
         smpl_taus.sort_by(|a, b| a.partial_cmp(b).unwrap());
         smpl_taus
+    }
+
+    /// CPQR-based variant of [`default_tau_sampling_points`].
+    ///
+    /// Identical to [`default_tau_sampling_points`] except that point selection
+    /// uses [`default_sampling_points_cpqr`] (column-pivoted QR / greedy maxvol
+    /// on a candidate design matrix) instead of polynomial roots. The same
+    /// `[-1, 1] → [-β/2, β/2]` folding is applied. The legacy method is left
+    /// untouched.
+    ///
+    /// [`default_tau_sampling_points`]: Self::default_tau_sampling_points
+    pub fn default_tau_sampling_points_cpqr(&self) -> Vec<f64> {
+        let x = default_sampling_points_cpqr(&self.sve_result.u, self.size());
+        let half_beta = self.beta / 2.0;
+        let mut smpl_taus: Vec<f64> = x
+            .iter()
+            .map(|&xi| {
+                let tau = half_beta * (xi + 1.0);
+                if tau <= half_beta {
+                    tau
+                } else {
+                    tau - self.beta
+                }
+            })
+            .collect();
+        smpl_taus.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        smpl_taus
+    }
+
+    /// CPQR-based variant of [`default_matsubara_sampling_points`].
+    ///
+    /// Builds a complex candidate design matrix `ûat_l(iω_n)` over a symmetric
+    /// grid of valid Matsubara frequencies and selects `size()` frequencies via
+    /// column-pivoted QR row selection (greedy maxvol). Because
+    /// [`crate::cpqr_select::select_sampling_rows_cpqr`] is generic over
+    /// `ComplexField`, this runs directly on the complex matrix — no real/imag
+    /// stacking is needed (that remains an equivalent alternative). The complex
+    /// values `ûat_l(iω_n)` themselves are reused unchanged.
+    ///
+    /// Unlike the legacy method, this does not assume centrosymmetry and so
+    /// does not panic for non-centrosymmetric kernels; it also does not force
+    /// `± n` pairing. The legacy method is left untouched.
+    ///
+    /// [`default_matsubara_sampling_points`]: Self::default_matsubara_sampling_points
+    pub fn default_matsubara_sampling_points_cpqr(&self) -> Vec<crate::freq::MatsubaraFreq<S>>
+    where
+        S: 'static,
+    {
+        use crate::freq::MatsubaraFreq;
+        use std::collections::BTreeSet;
+
+        // Candidate Matsubara indices: a dense low band plus an exponential
+        // tail (mirroring the search grid used by the legacy selector),
+        // symmetrized over both signs. MatsubaraFreq::new filters invalid
+        // parity (odd for fermions, even for bosons).
+        let mut mags: Vec<i64> = (0..=256).collect();
+        let mut k: i64 = 256;
+        while k < (1 << 20) {
+            k += (k / 16).max(1);
+            mags.push(k);
+        }
+        let cand: Vec<MatsubaraFreq<S>> = {
+            let mut set: BTreeSet<MatsubaraFreq<S>> = BTreeSet::new();
+            for &m in &mags {
+                for &n in &[m, -m] {
+                    if let Ok(f) = MatsubaraFreq::<S>::new(n) {
+                        set.insert(f);
+                    }
+                }
+            }
+            set.into_iter().collect()
+        };
+
+        let l = self.size();
+        if l == 0 || cand.is_empty() {
+            return Vec::new();
+        }
+
+        // Complex candidate design matrix: rows = candidate frequencies,
+        // columns = the first `l` (truncated-basis) Matsubara basis functions.
+        let rows = self.uhat_full.evaluate_at_many(&cand);
+        let mut a = nalgebra::DMatrix::<num_complex::Complex64>::zeros(cand.len(), l);
+        for (i, row) in rows.iter().enumerate() {
+            for j in 0..l {
+                a[(i, j)] = row[j];
+            }
+        }
+
+        let idx = crate::cpqr_select::select_sampling_rows_cpqr(&a, l);
+        let mut freqs: Vec<MatsubaraFreq<S>> = idx.into_iter().map(|i| cand[i]).collect();
+        freqs.sort();
+        freqs
     }
 
     /// Get default Matsubara frequency sampling points
