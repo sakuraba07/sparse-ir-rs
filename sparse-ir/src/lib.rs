@@ -4,6 +4,7 @@
 //! library in Rust, providing analytical continuation and sparse representation
 //! functionality for quantum many-body physics calculations.
 
+pub mod aca; // ACA-accelerated truncated SVD for the non-symmetric SVE path
 pub mod basis;
 pub mod basis_trait; // Common trait for basis representations
 pub mod col_piv_qr; // Column-pivoted QR decomposition using nalgebra

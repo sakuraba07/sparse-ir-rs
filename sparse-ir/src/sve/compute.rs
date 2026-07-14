@@ -229,7 +229,7 @@ where
     let mut v_list = Vec::new();
 
     for matrix in matrices.iter() {
-        let (u, s, v) = crate::tsvd::compute_svd_dtensor(matrix);
+        let (u, s, v) = crate::aca::compute_svd_dtensor_aca(matrix);
         u_list.push(u);
         s_list.push(s);
         v_list.push(v);
@@ -458,6 +458,79 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Acceptance: the (now ACA-routed) general path must match the symmetric
+    /// path's spectrum for the LogisticKernel across a range of Λ.
+    #[test]
+    fn aca_general_matches_symmetric_across_lambda() {
+        use crate::kernel::LogisticKernel;
+        for &lambda in &[10.0_f64, 100.0, 1000.0] {
+            let eps = 1e-10;
+            let sym = compute_sve(
+                LogisticKernel::new(lambda),
+                eps,
+                None,
+                None,
+                TworkType::Auto,
+            );
+            let general = compute_sve_general(
+                LogisticKernel::new(lambda),
+                eps,
+                None,
+                None,
+                TworkType::Auto,
+            );
+            let n = sym.s.len().min(general.s.len());
+            assert!(n > 0);
+            for i in 0..n {
+                let rel = (sym.s[i] - general.s[i]).abs() / sym.s[0];
+                assert!(
+                    rel < 1e-9,
+                    "Λ={lambda} sv {i} differs: sym={} gen={} rel={rel:e}",
+                    sym.s[i],
+                    general.s[i]
+                );
+            }
+            let dn = (sym.s.len() as i64 - general.s.len() as i64).abs();
+            assert!(
+                dn <= 2,
+                "Λ={lambda} sv counts differ: {} vs {}",
+                sym.s.len(),
+                general.s.len()
+            );
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn bench_aca_vs_symmetric_lambda10000() {
+        use crate::kernel::LogisticKernel;
+        let lambda = 10000.0;
+        let eps = 1e-10;
+        let t0 = std::time::Instant::now();
+        let sym = compute_sve(
+            LogisticKernel::new(lambda),
+            eps,
+            None,
+            None,
+            TworkType::Auto,
+        );
+        let t_sym = t0.elapsed().as_secs_f64();
+        let t1 = std::time::Instant::now();
+        let g = compute_sve_general(
+            LogisticKernel::new(lambda),
+            eps,
+            None,
+            None,
+            TworkType::Auto,
+        );
+        let t_gen = t1.elapsed().as_secs_f64();
+        eprintln!(
+            "[BENCH] Λ={lambda} symmetric={t_sym:.3}s general(ACA)={t_gen:.3}s basis_sym={} basis_gen={}",
+            sym.s.len(),
+            g.s.len()
+        );
     }
 
     #[test]
