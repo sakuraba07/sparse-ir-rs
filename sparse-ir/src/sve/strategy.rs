@@ -268,6 +268,25 @@ where
     }
 }
 
+/// Mirror positive-domain segments `[0, s1, …, sN]` to the full symmetric
+/// domain `[-sN, …, -s1, 0, s1, …, sN]`.
+///
+/// `SVEHints` returns segments only for the reduced positive domain (used by
+/// `CentrosymmSVE`). The non-centrosymmetric strategy evaluates the full kernel
+/// over `[-xmax, xmax] × [-ymax, ymax]`, so it needs the mirrored full-domain
+/// segments — otherwise it would (incorrectly) discretize only the positive
+/// quadrant.
+fn mirror_segments_to_full<T: RealNumeric>(positive: &[T]) -> Vec<T> {
+    let mut full = Vec::with_capacity(positive.len().saturating_mul(2));
+    for &s in positive.iter().rev() {
+        if s > T::zero() {
+            full.push(T::zero() - s);
+        }
+    }
+    full.extend_from_slice(positive);
+    full
+}
+
 /// Non-centrosymmetric SVE computation
 ///
 /// This strategy works with non-centrosymmetric kernels by directly computing
@@ -304,9 +323,10 @@ where
     pub fn new(kernel: K, epsilon: f64) -> Self {
         let hints = kernel.sve_hints::<T>(epsilon);
 
-        // Get segments for full domain [-xmax, xmax]
-        let segments_x = hints.segments_x();
-        let segments_y = hints.segments_y();
+        // Mirror the reduced positive-domain segments to the full domain
+        // [-xmax, xmax]; the hints only provide [0, xmax].
+        let segments_x = mirror_segments_to_full(&hints.segments_x());
+        let segments_y = mirror_segments_to_full(&hints.segments_y());
         let n_gauss = hints.ngauss();
 
         // Create composite Gauss rules for full domain

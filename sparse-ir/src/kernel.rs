@@ -92,6 +92,12 @@ pub trait KernelProperties {
     /// Get the upper bound of the y domain
     fn ymax(&self) -> f64;
 
+    /// Get the cutoff parameter Λ (lambda)
+    ///
+    /// This is a kernel property (the dimensionless cutoff), independent of
+    /// centrosymmetry, so it lives here rather than on `CentrosymmKernel`.
+    fn lambda(&self) -> f64;
+
     /// A regularizer for a bosonic kernel for avoiding a divergence at omega = 0.
     ///
     /// The bosonic kernel diverges at omega = 0.
@@ -172,9 +178,6 @@ pub trait CentrosymmKernel: AbstractKernel {
         y: T,
         symmetry: SymmetryType,
     ) -> T;
-
-    /// Get the cutoff parameter Λ (lambda)
-    fn lambda(&self) -> f64;
 }
 
 /// Logistic kernel for fermionic analytical continuation
@@ -216,6 +219,10 @@ impl KernelProperties for LogisticKernel {
     }
     fn ymax(&self) -> f64 {
         1.0
+    }
+
+    fn lambda(&self) -> f64 {
+        self.lambda
     }
 
     fn regularizer<S: StatisticsType + 'static>(&self, beta: f64, omega: f64) -> f64 {
@@ -296,10 +303,6 @@ impl CentrosymmKernel for LogisticKernel {
             SymmetryType::Even => self.compute(x, y) + self.compute(x, -y),
             SymmetryType::Odd => compute_logistic_kernel_reduced_odd(self.lambda, x, y),
         }
-    }
-
-    fn lambda(&self) -> f64 {
-        self.lambda
     }
 }
 
@@ -589,6 +592,10 @@ impl KernelProperties for RegularizedBoseKernel {
         1.0
     }
 
+    fn lambda(&self) -> f64 {
+        self.lambda
+    }
+
     fn regularizer<S: StatisticsType + 'static>(&self, _beta: f64, omega: f64) -> f64 {
         match S::STATISTICS {
             Statistics::Fermionic => {
@@ -648,10 +655,6 @@ impl CentrosymmKernel for RegularizedBoseKernel {
                 }
             }
         }
-    }
-
-    fn lambda(&self) -> f64 {
-        self.lambda
     }
 }
 

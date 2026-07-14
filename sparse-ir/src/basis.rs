@@ -5,12 +5,12 @@
 
 use std::sync::Arc;
 
-use crate::kernel::{CentrosymmKernel, KernelProperties, LogisticKernel};
+use crate::kernel::{AbstractKernel, CentrosymmKernel, KernelProperties, LogisticKernel};
 use crate::poly::{
     PiecewiseLegendrePolyVector, default_sampling_points, default_sampling_points_cpqr,
 };
 use crate::polyfourier::PiecewiseLegendreFTVector;
-use crate::sve::{SVEResult, TworkType, compute_sve};
+use crate::sve::{SVEResult, TworkType, compute_sve, compute_sve_general};
 use crate::traits::{Bosonic, Fermionic, StatisticsType};
 
 // Re-export Statistics enum for C-API
@@ -40,7 +40,7 @@ pub enum Statistics {
 #[derive(Clone)]
 pub struct FiniteTempBasis<K, S>
 where
-    K: KernelProperties + CentrosymmKernel + Clone + 'static,
+    K: KernelProperties + AbstractKernel + Clone + 'static,
     S: StatisticsType,
 {
     /// The kernel used to construct this basis
@@ -77,9 +77,49 @@ where
     _phantom: std::marker::PhantomData<S>,
 }
 
+/// Constructor that requires centrosymmetry, kept separate so it can use the
+/// faster symmetric SVE path (`compute_sve`). All other methods live in the
+/// `AbstractKernel`-bounded impl below and are available to general kernels too.
 impl<K, S> FiniteTempBasis<K, S>
 where
     K: KernelProperties + CentrosymmKernel + Clone + 'static,
+    S: StatisticsType,
+{
+    /// Create a new FiniteTempBasis
+    ///
+    /// # Arguments
+    ///
+    /// * `kernel` - Kernel implementing `KernelProperties + CentrosymmKernel`
+    /// * `beta` - Inverse temperature (β > 0)
+    /// * `epsilon` - Accuracy parameter (optional, defaults to NaN for auto)
+    /// * `max_size` - Maximum number of basis functions (optional)
+    ///
+    /// # Returns
+    ///
+    /// A new FiniteTempBasis
+    pub fn new(kernel: K, beta: f64, epsilon: Option<f64>, max_size: Option<usize>) -> Self {
+        // Validate inputs
+        if beta <= 0.0 {
+            panic!("Inverse temperature beta must be positive, got {}", beta);
+        }
+
+        // Compute SVE (symmetric path)
+        let epsilon_value = epsilon.unwrap_or(f64::NAN);
+        let sve_result = compute_sve(
+            kernel.clone(),
+            epsilon_value,
+            None, // cutoff
+            max_size,
+            TworkType::Auto,
+        );
+
+        Self::from_sve_result(kernel, beta, sve_result, epsilon, max_size)
+    }
+}
+
+impl<K, S> FiniteTempBasis<K, S>
+where
+    K: KernelProperties + AbstractKernel + Clone + 'static,
     S: StatisticsType,
 {
     // ========== Getters ==========
@@ -175,27 +215,38 @@ where
         freqs.into_iter().map(|f| f.n()).collect()
     }
 
-    /// Create a new FiniteTempBasis
+    /// Create a new FiniteTempBasis for a general (possibly non-centrosymmetric)
+    /// kernel.
+    ///
+    /// This routes the kernel through the non-centrosymmetric SVE path
+    /// (`compute_sve_general` -> `NonCentrosymmSVE`), which discretizes the full
+    /// domain instead of exploiting even/odd symmetry. For centrosymmetric
+    /// kernels prefer [`FiniteTempBasis::new`], which is ~4× faster.
+    ///
+    /// Note: the legacy `default_matsubara_sampling_points` still panics for
+    /// non-centrosymmetric kernels; use `default_matsubara_sampling_points_cpqr`
+    /// (and `default_tau_sampling_points_cpqr`), which are symmetry-agnostic.
     ///
     /// # Arguments
     ///
-    /// * `kernel` - Kernel implementing `KernelProperties + CentrosymmKernel`
+    /// * `kernel` - Kernel implementing `KernelProperties + AbstractKernel`
     /// * `beta` - Inverse temperature (β > 0)
     /// * `epsilon` - Accuracy parameter (optional, defaults to NaN for auto)
     /// * `max_size` - Maximum number of basis functions (optional)
-    ///
-    /// # Returns
-    ///
-    /// A new FiniteTempBasis
-    pub fn new(kernel: K, beta: f64, epsilon: Option<f64>, max_size: Option<usize>) -> Self {
+    pub fn new_general(
+        kernel: K,
+        beta: f64,
+        epsilon: Option<f64>,
+        max_size: Option<usize>,
+    ) -> Self {
         // Validate inputs
         if beta <= 0.0 {
             panic!("Inverse temperature beta must be positive, got {}", beta);
         }
 
-        // Compute SVE
+        // Compute SVE via the general (non-centrosymmetric) path
         let epsilon_value = epsilon.unwrap_or(f64::NAN);
-        let sve_result = compute_sve(
+        let sve_result = compute_sve_general(
             kernel.clone(),
             epsilon_value,
             None, // cutoff
@@ -685,7 +736,7 @@ where
 
 impl<K, S> crate::basis_trait::Basis<S> for FiniteTempBasis<K, S>
 where
-    K: KernelProperties + CentrosymmKernel + Clone + 'static,
+    K: KernelProperties + AbstractKernel + Clone + 'static,
     S: StatisticsType + 'static,
 {
     type Kernel = K;

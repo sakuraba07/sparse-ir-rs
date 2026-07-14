@@ -613,3 +613,321 @@ fn test_noncentrosymm_kernel_compute() {
     let result4: f64 = kernel.compute(-0.5, -0.5);
     assert!((result3 - result4).abs() > 1e-10); // Should be different (1.0 vs -1.0)
 }
+
+// ============================================================================
+// A genuine non-centrosymmetric kernel with an analytically known SVE.
+//
+// Unlike `SimpleNonCentrosymmKernel` (K = x + y, which deliberately omits
+// `KernelProperties`/`SVEHints` and so cannot be fed to `compute_sve_general`),
+// this fixture implements the full trait set, so the non-centrosymmetric SVE
+// path can be tested *directly* against a known answer rather than by routing
+// a symmetric kernel through it.
+//
+// Construction: a finite sum of products of L2[-1,1]-orthonormal normalized
+// Legendre polynomials P̃_n(x) = sqrt((2n+1)/2) · P_n(x):
+//
+//   K(x, y) = s0 · P̃_0(x) P̃_1(y)
+//           + s1 · P̃_1(x) P̃_0(y)
+//           + s2 · P̃_2(x) P̃_2(y)
+//
+// The left family {P̃_0, P̃_1, P̃_2} and the right family {P̃_1, P̃_0, P̃_2} are
+// each orthonormal, so this expression *is* the singular value expansion: the
+// singular values are exactly {s0, s1, s2} (sorted descending) and the singular
+// functions are the corresponding P̃_n. That is an exact ground truth.
+//
+// It is non-centrosymmetric because under (x, y) -> (-x, -y) the first two terms
+// (odd total Legendre degree) flip sign while the third (even total degree) does
+// not, so K(-x, -y) != K(x, y).
+// ============================================================================
+
+fn norm_legendre_p0<T: RealNumeric>() -> T {
+    T::from_f64_unchecked((0.5_f64).sqrt())
+}
+
+fn norm_legendre_p1<T: RealNumeric + Copy>(x: T) -> T {
+    T::from_f64_unchecked((1.5_f64).sqrt()) * x
+}
+
+fn norm_legendre_p2<T: RealNumeric + Copy>(x: T) -> T {
+    let c = T::from_f64_unchecked((2.5_f64).sqrt());
+    let half = T::from_f64_unchecked(0.5);
+    let three = T::from_f64_unchecked(3.0);
+    let one = T::from_f64_unchecked(1.0);
+    c * half * (three * x * x - one)
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SeparableNonsymmKernel {
+    s0: f64,
+    s1: f64,
+    s2: f64,
+}
+
+impl SeparableNonsymmKernel {
+    fn new() -> Self {
+        Self {
+            s0: 1.0,
+            s1: 0.6,
+            s2: 0.3,
+        }
+    }
+}
+
+impl AbstractKernel for SeparableNonsymmKernel {
+    fn compute<T: RealNumeric + Copy + Debug>(&self, x: T, y: T) -> T {
+        let s0 = T::from_f64_unchecked(self.s0);
+        let s1 = T::from_f64_unchecked(self.s1);
+        let s2 = T::from_f64_unchecked(self.s2);
+        s0 * norm_legendre_p0::<T>() * norm_legendre_p1(y)
+            + s1 * norm_legendre_p1(x) * norm_legendre_p0::<T>()
+            + s2 * norm_legendre_p2(x) * norm_legendre_p2(y)
+    }
+
+    fn is_centrosymmetric(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, Clone)]
+struct SeparableNonsymmSVEHints<T> {
+    epsilon: f64,
+    _phantom: std::marker::PhantomData<T>,
+}
+
+impl<T> SVEHints<T> for SeparableNonsymmSVEHints<T>
+where
+    T: Copy + Debug + Send + Sync + RealNumeric,
+{
+    fn segments_x(&self) -> Vec<T> {
+        // Positive-domain endpoints only; NonCentrosymmSVE mirrors these to the
+        // full domain [-1, 0, 1]. One segment per half exactly resolves the
+        // degree-2 singular functions under Gauss-Legendre quadrature.
+        vec![T::from_f64_unchecked(0.0), T::from_f64_unchecked(1.0)]
+    }
+
+    fn segments_y(&self) -> Vec<T> {
+        vec![T::from_f64_unchecked(0.0), T::from_f64_unchecked(1.0)]
+    }
+
+    fn nsvals(&self) -> usize {
+        6
+    }
+
+    fn ngauss(&self) -> usize {
+        // Plenty to integrate degree-4 products of the degree-2 basis exactly.
+        if self.epsilon >= 1e-8 { 10 } else { 16 }
+    }
+}
+
+impl KernelProperties for SeparableNonsymmKernel {
+    type SVEHintsType<T>
+        = SeparableNonsymmSVEHints<T>
+    where
+        T: Copy + Debug + Send + Sync + RealNumeric + 'static;
+
+    fn ypower(&self) -> i32 {
+        0
+    }
+
+    fn conv_radius(&self) -> f64 {
+        1e9
+    }
+
+    fn xmax(&self) -> f64 {
+        1.0
+    }
+
+    fn ymax(&self) -> f64 {
+        1.0
+    }
+
+    fn lambda(&self) -> f64 {
+        // This separable test kernel has no physical cutoff; report the domain
+        // half-width. Only relevant if a basis is built from it (ωmax = Λ/β).
+        1.0
+    }
+
+    fn regularizer<S: StatisticsType + 'static>(&self, _beta: f64, _omega: f64) -> f64 {
+        1.0
+    }
+
+    fn sve_hints<T>(&self, epsilon: f64) -> Self::SVEHintsType<T>
+    where
+        T: Copy + Debug + Send + Sync + RealNumeric + 'static,
+    {
+        SeparableNonsymmSVEHints {
+            epsilon,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+#[test]
+fn separable_nonsymm_kernel_is_not_centrosymmetric() {
+    let kernel = SeparableNonsymmKernel::new();
+    assert!(!kernel.is_centrosymmetric());
+    // Spot-check K(-x,-y) != K(x,y) numerically.
+    let k_pos: f64 = kernel.compute(0.4_f64, 0.7);
+    let k_neg: f64 = kernel.compute(-0.4_f64, -0.7);
+    assert!((k_pos - k_neg).abs() > 1e-6);
+}
+
+#[test]
+fn separable_nonsymm_kernel_recovers_analytic_sve() {
+    use crate::sve::{TworkType, compute_sve_general};
+
+    let kernel = SeparableNonsymmKernel::new();
+    let eps = 1e-10;
+
+    let result = compute_sve_general(kernel, eps, None, None, TworkType::Auto);
+
+    // The kernel is rank-3 by construction, with singular values {1.0, 0.6, 0.3}
+    // (descending). The non-centrosymmetric path must recover them exactly
+    // (up to quadrature/SVD precision) — and nothing else of significance.
+    assert!(
+        result.s.len() >= 3,
+        "expected at least 3 singular values, got {}",
+        result.s.len()
+    );
+
+    let expected = [1.0_f64, 0.6, 0.3];
+    for (i, &want) in expected.iter().enumerate() {
+        let got = result.s[i];
+        let rel = (got - want).abs() / want;
+        assert!(
+            rel < 1e-8,
+            "singular value {} mismatch: want {:.12e}, got {:.12e} (rel={:.3e})",
+            i,
+            want,
+            got,
+            rel
+        );
+    }
+
+    // Any further singular values must be numerical noise (the kernel is
+    // exactly rank 3), well below the smallest true value.
+    if result.s.len() > 3 {
+        assert!(
+            result.s[3] < 1e-9 * result.s[0],
+            "unexpected 4th singular value {:.3e} (should be ~0)",
+            result.s[3]
+        );
+    }
+
+    // Gauge-invariant reconstruction: K(x,y) = Σ_l s_l u_l(x) v_l(y) must match
+    // the analytic kernel at interior full-domain points. This validates the
+    // singular *functions* the non-centrosymmetric path produced, not just the
+    // singular values.
+    let recon = |x: f64, y: f64| -> f64 {
+        let u = result.u.get_polys();
+        let v = result.v.get_polys();
+        (0..result.s.len())
+            .map(|l| u[l].evaluate(x) * result.s[l] * v[l].evaluate(y))
+            .sum()
+    };
+    let analytic = |x: f64, y: f64| -> f64 { kernel.compute(x, y) };
+    for &x in &[-0.8_f64, -0.3, 0.2, 0.6] {
+        for &y in &[-0.6_f64, 0.1, 0.7] {
+            let r = recon(x, y);
+            let a = analytic(x, y);
+            assert!(
+                (r - a).abs() < 1e-7,
+                "reconstruction mismatch at ({},{}): recon={:.6e}, analytic={:.6e}",
+                x,
+                y,
+                r,
+                a
+            );
+        }
+    }
+}
+
+#[test]
+fn separable_nonsymm_kernel_basis_tau_round_trip() {
+    use crate::{Fermionic, FiniteTempBasis, TauSampling};
+
+    let beta = 2.0;
+    let eps = 1e-10;
+
+    // Route a genuinely non-centrosymmetric kernel through the basis layer via
+    // the relaxed general constructor (compute_sve_general -> NonCentrosymmSVE).
+    let basis: FiniteTempBasis<SeparableNonsymmKernel, Fermionic> =
+        FiniteTempBasis::new_general(SeparableNonsymmKernel::new(), beta, Some(eps), None);
+
+    let n = basis.size();
+    assert!(n >= 3, "expected at least 3 basis functions, got {}", n);
+
+    // Singular values are rescaled by a common factor sqrt(β/2·ωmax)·ωmax^-ypower,
+    // so the *ratios* must reproduce the analytic spectrum {1.0, 0.6, 0.3}.
+    let s = basis.s();
+    assert!((s[1] / s[0] - 0.6).abs() < 1e-8, "s1/s0 = {}", s[1] / s[0]);
+    assert!((s[2] / s[0] - 0.3).abs() < 1e-8, "s2/s0 = {}", s[2] / s[0]);
+
+    // Symmetry-agnostic CPQR tau points (the legacy root/extrema path is not
+    // needed here) drive an end-to-end imaginary-time round trip on a
+    // non-centrosymmetric basis: fit(evaluate(g)) == g.
+    let tau_pts = basis.default_tau_sampling_points_cpqr();
+    assert!(!tau_pts.is_empty());
+
+    let sampling = TauSampling::<Fermionic>::with_sampling_points(&basis, tau_pts);
+    let g: Vec<f64> = (0..n).map(|i| 1.0 / (i as f64 + 1.0)).collect();
+    let values = sampling.evaluate(&g);
+    let g_rec = sampling.fit(&values);
+
+    assert_eq!(g_rec.len(), g.len());
+    for (i, (a, b)) in g.iter().zip(g_rec.iter()).enumerate() {
+        assert!(
+            (a - b).abs() < 1e-8,
+            "tau round-trip mismatch at coeff {}: {} vs {}",
+            i,
+            a,
+            b
+        );
+    }
+}
+
+#[test]
+fn separable_nonsymm_kernel_basis_matsubara_round_trip() {
+    use crate::{Fermionic, FiniteTempBasis, MatsubaraSampling};
+    use num_complex::Complex;
+
+    let basis: FiniteTempBasis<SeparableNonsymmKernel, Fermionic> =
+        FiniteTempBasis::new_general(SeparableNonsymmKernel::new(), 2.0, Some(1e-10), None);
+    let n = basis.size();
+
+    // Complex CPQR Matsubara points (symmetry-agnostic) drive an end-to-end
+    // iω round trip on a non-centrosymmetric basis: fit(evaluate(g)) == g.
+    let wn_pts = basis.default_matsubara_sampling_points_cpqr();
+    assert!(!wn_pts.is_empty());
+
+    let sampling = MatsubaraSampling::<Fermionic>::with_sampling_points(&basis, wn_pts);
+    let g: Vec<Complex<f64>> = (0..n)
+        .map(|i| Complex::new(1.0 / (i as f64 + 1.0), 0.2 * i as f64))
+        .collect();
+    let values = sampling.evaluate(&g);
+    let g_rec = sampling.fit(&values);
+
+    assert_eq!(g_rec.len(), g.len());
+    for (i, (a, b)) in g.iter().zip(g_rec.iter()).enumerate() {
+        assert!(
+            (a - b).norm() < 1e-8,
+            "matsubara round-trip mismatch at coeff {}: {} vs {}",
+            i,
+            a,
+            b
+        );
+    }
+}
+
+#[test]
+#[should_panic(expected = "not supported for non-centrosymmetric")]
+fn separable_nonsymm_basis_legacy_matsubara_panics() {
+    use crate::{Fermionic, FiniteTempBasis};
+
+    let basis: FiniteTempBasis<SeparableNonsymmKernel, Fermionic> =
+        FiniteTempBasis::new_general(SeparableNonsymmKernel::new(), 2.0, Some(1e-10), None);
+
+    // The legacy Matsubara sampling assumes centrosymmetry; it must refuse a
+    // non-centrosymmetric basis rather than return wrong points.
+    let _ = basis.default_matsubara_sampling_points(false);
+}

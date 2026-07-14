@@ -379,6 +379,87 @@ pub fn truncate<T: RealNumeric>(
 mod tests {
     use super::*;
 
+    /// Route the trusted (centrosymmetric) LogisticKernel through the
+    /// non-centrosymmetric SVE path (`compute_sve_general` -> `NonCentrosymmSVE`,
+    /// full-domain single matrix) and check that its singular values match the
+    /// symmetric path (`compute_sve` -> `CentrosymmSVE`). The SVE is unique, so
+    /// the two decomposition routes must agree — this validates the
+    /// non-symmetric path against trusted output.
+    #[test]
+    fn noncentrosymm_path_matches_centrosymm_for_logistic() {
+        use crate::kernel::LogisticKernel;
+
+        let lambda = 10.0;
+        let eps = 1e-6;
+
+        let sym = compute_sve(
+            LogisticKernel::new(lambda),
+            eps,
+            None,
+            None,
+            TworkType::Auto,
+        );
+        let general = compute_sve_general(
+            LogisticKernel::new(lambda),
+            eps,
+            None,
+            None,
+            TworkType::Auto,
+        );
+
+        assert!(!sym.s.is_empty() && !general.s.is_empty());
+
+        // Compare the leading singular values (same kernel, different route).
+        let n = sym.s.len().min(general.s.len());
+        for i in 0..n {
+            let rel = (sym.s[i] - general.s[i]).abs() / sym.s[0];
+            assert!(
+                rel < 1e-6,
+                "singular value {} differs between paths: centrosymm={:.6e}, general={:.6e} (rel={:.3e})",
+                i,
+                sym.s[i],
+                general.s[i],
+                rel
+            );
+        }
+
+        // The two paths should keep a comparable number of singular values.
+        let dn = (sym.s.len() as i64 - general.s.len() as i64).abs();
+        assert!(
+            dn <= 2,
+            "singular-value counts differ too much: centrosymm={}, general={}",
+            sym.s.len(),
+            general.s.len()
+        );
+
+        // Reconstruct K(x,y) = Σ_l u_l(x) s_l v_l(y) from each path's singular
+        // functions and check they agree at interior full-domain points. This
+        // is gauge-invariant (per-mode sign flips cancel), so it validates the
+        // polynomials produced by the non-centrosymmetric path, not just the
+        // singular values.
+        let recon = |sve: &SVEResult, x: f64, y: f64| -> f64 {
+            let u = sve.u.get_polys();
+            let v = sve.v.get_polys();
+            (0..sve.s.len())
+                .map(|l| u[l].evaluate(x) * sve.s[l] * v[l].evaluate(y))
+                .sum()
+        };
+        for &x in &[-0.7_f64, -0.2, 0.3, 0.8] {
+            for &y in &[-0.5_f64, 0.1, 0.6] {
+                let rs = recon(&sym, x, y);
+                let rg = recon(&general, x, y);
+                assert!(
+                    (rs - rg).abs() < 1e-5,
+                    "kernel reconstruction differs at ({},{}): centrosymm={:.6e}, general={:.6e}",
+                    x,
+                    y,
+                    rs,
+                    rg
+                );
+            }
+        }
+    }
+
     #[test]
     fn test_truncate_by_rtol() {
         let u = vec![DTensor::<f64, 2>::from_elem([3, 3], 1.0)];
