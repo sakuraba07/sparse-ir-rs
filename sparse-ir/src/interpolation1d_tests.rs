@@ -2,6 +2,7 @@ use crate::gauss::{legendre_generic, legendre_vandermonde};
 use crate::interpolation1d::{
     evaluate_interpolated_polynomial, interpolate_1d_legendre, legendre_collocation_matrix,
 };
+use crate::numeric::RealNumeric;
 use crate::{CustomNumeric, Df64, Interpolate1D};
 use mdarray::DTensor;
 
@@ -104,7 +105,7 @@ fn test_interpolate1d_struct() {
 }
 
 /// Generic test for Interpolate1D struct
-fn test_interpolate1d_struct_generic<T: CustomNumeric + 'static>() {
+fn test_interpolate1d_struct_generic<T: RealNumeric + 'static>() {
     let n = 10;
     let rule =
         legendre_generic::<T>(n).reseat(T::from_f64_unchecked(-1.0), T::from_f64_unchecked(1.0));
@@ -178,7 +179,7 @@ fn test_interpolate1d_sin_precision() {
 }
 
 /// Generic test for Interpolate1D with sin(x) function
-fn test_interpolate1d_sin_generic<T: CustomNumeric + 'static>(n_points: usize, tolerance: f64) {
+fn test_interpolate1d_sin_generic<T: RealNumeric + 'static>(n_points: usize, tolerance: f64) {
     let rule = legendre_generic::<T>(n_points)
         .reseat(T::from_f64_unchecked(-1.0), T::from_f64_unchecked(1.0));
 

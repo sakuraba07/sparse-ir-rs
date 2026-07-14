@@ -2,7 +2,7 @@
 
 use crate::fpu_check::FpuGuard;
 use crate::kernel::{AbstractKernel, CentrosymmKernel, KernelProperties, SVEHints};
-use crate::numeric::CustomNumeric;
+use crate::numeric::RealNumeric;
 use mdarray::DTensor;
 
 use super::result::SVEResult;
@@ -173,7 +173,7 @@ fn compute_sve_with_precision<T, K>(
     max_num_svals: Option<usize>,
 ) -> SVEResult
 where
-    T: CustomNumeric + Send + Sync + Clone + 'static,
+    T: RealNumeric + Send + Sync + Clone + 'static,
     K: CentrosymmKernel + KernelProperties + Clone + 'static,
     K::SVEHintsType<T>: SVEHints<T> + Clone,
 {
@@ -213,7 +213,7 @@ fn compute_sve_general_with_precision<T, K>(
     max_num_svals: Option<usize>,
 ) -> SVEResult
 where
-    T: CustomNumeric + Send + Sync + Clone + 'static,
+    T: RealNumeric + Send + Sync + Clone + 'static,
     K: AbstractKernel + KernelProperties + Clone + 'static,
     K::SVEHintsType<T>: SVEHints<T> + Clone,
 {
@@ -250,7 +250,7 @@ where
 /// by exploiting even/odd symmetry.
 fn determine_sve<T, K>(kernel: K, epsilon: f64) -> Box<dyn SVEStrategy<T>>
 where
-    T: CustomNumeric + Send + Sync + Clone + 'static,
+    T: RealNumeric + Send + Sync + Clone + 'static,
     K: CentrosymmKernel + KernelProperties + Clone + 'static,
     K::SVEHintsType<T>: SVEHints<T> + Clone,
 {
@@ -264,7 +264,7 @@ where
 /// based on kernel symmetry.
 fn determine_sve_general<T, K>(kernel: K, epsilon: f64) -> Box<dyn SVEStrategy<T>>
 where
-    T: CustomNumeric + Send + Sync + Clone + 'static,
+    T: RealNumeric + Send + Sync + Clone + 'static,
     K: AbstractKernel + KernelProperties + Clone + 'static,
     K::SVEHintsType<T>: SVEHints<T> + Clone,
 {
@@ -291,7 +291,7 @@ where
 /// # Returns
 ///
 /// Tuple of (truncated_u_list, truncated_s_list, truncated_v_list)
-pub fn truncate<T: CustomNumeric>(
+pub fn truncate<T: RealNumeric>(
     u_list: Vec<DTensor<T, 2>>,
     s_list: Vec<Vec<T>>,
     v_list: Vec<DTensor<T, 2>>,

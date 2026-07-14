@@ -5,7 +5,7 @@
 
 use crate::gauss::Rule;
 use crate::interpolation1d::{evaluate_legendre_basis, legendre_collocation_matrix};
-use crate::numeric::CustomNumeric;
+use crate::numeric::{CustomNumeric, RealNumeric};
 use mdarray::DTensor;
 use std::fmt::Debug;
 
@@ -29,7 +29,7 @@ pub struct Interpolate2D<T> {
     pub gauss_y: Rule<T>,
 }
 
-impl<T: CustomNumeric + Debug + 'static> Interpolate2D<T> {
+impl<T: RealNumeric + Debug + 'static> Interpolate2D<T> {
     /// Create a new Interpolate2D object from grid values
     ///
     /// # Arguments

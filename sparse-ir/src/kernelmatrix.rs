@@ -6,7 +6,7 @@
 use crate::gauss::Rule;
 use crate::interpolation2d::Interpolate2D;
 use crate::kernel::{AbstractKernel, CentrosymmKernel, KernelProperties, SymmetryType};
-use crate::numeric::CustomNumeric;
+use crate::numeric::{CustomNumeric, RealNumeric};
 use mdarray::DTensor;
 use std::fmt::Debug;
 
@@ -139,7 +139,7 @@ impl<T: CustomNumeric + Clone> DiscretizedKernel<T> {
 /// This function evaluates the kernel at all combinations of Gauss points
 /// and returns a DiscretizedKernel containing the matrix, quadrature rules, and segments.
 pub fn matrix_from_gauss_with_segments<
-    T: CustomNumeric + Clone + Send + Sync,
+    T: RealNumeric + Clone + Send + Sync,
     K: CentrosymmKernel + KernelProperties,
     H: crate::kernel::SVEHints<T>,
 >(
@@ -205,7 +205,7 @@ pub fn matrix_from_gauss_with_segments<
 ///
 /// This function evaluates the kernel at all combinations of Gauss points
 /// and returns a DiscretizedKernel containing the matrix and quadrature rules.
-pub fn matrix_from_gauss<T: CustomNumeric + Clone, K: CentrosymmKernel + KernelProperties>(
+pub fn matrix_from_gauss<T: RealNumeric + Clone, K: CentrosymmKernel + KernelProperties>(
     kernel: &K,
     gauss_x: &Rule<T>,
     gauss_y: &Rule<T>,
@@ -273,7 +273,7 @@ pub fn matrix_from_gauss<T: CustomNumeric + Clone, K: CentrosymmKernel + KernelP
 ///
 /// DiscretizedKernel containing the matrix, quadrature rules, and segments
 pub fn matrix_from_gauss_noncentrosymmetric<
-    T: CustomNumeric + Clone + Send + Sync,
+    T: RealNumeric + Clone + Send + Sync,
     K: AbstractKernel + KernelProperties,
     H: crate::kernel::SVEHints<T>,
 >(
@@ -331,7 +331,7 @@ pub struct InterpolatedKernel<T> {
     pub n_cells_y: usize,
 }
 
-impl<T: CustomNumeric + Debug + Clone + 'static> InterpolatedKernel<T> {
+impl<T: RealNumeric + Debug + Clone + 'static> InterpolatedKernel<T> {
     /// Create InterpolatedKernel from kernel and segments
     ///
     /// This function creates a grid of Interpolate2D objects, one for each

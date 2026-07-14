@@ -3,7 +3,7 @@ use crate::Df64;
 use crate::interpolation1d::{
     evaluate_interpolated_polynomial, interpolate_1d_legendre, legendre_collocation_matrix,
 };
-use crate::numeric::CustomNumeric;
+use crate::numeric::{CustomNumeric, RealNumeric};
 use mdarray::DTensor;
 
 #[test]
@@ -448,7 +448,7 @@ fn test_legendre_vandermonde_basic() {
 }
 
 /// Generic test function for 1D Legendre interpolation of sin(x) - MOVED TO interpolation1d_tests.rs
-fn test_interpolate_1d_legendre_sin_generic<T: CustomNumeric + 'static>(
+fn test_interpolate_1d_legendre_sin_generic<T: RealNumeric + 'static>(
     n_points: usize,
     tolerance: T,
     test_points: Vec<T>,

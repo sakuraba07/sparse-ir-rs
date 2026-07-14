@@ -3,7 +3,7 @@
 use crate::gauss::{Rule, legendre_generic};
 use crate::kernel::{AbstractKernel, CentrosymmKernel, KernelProperties, SVEHints, SymmetryType};
 use crate::kernelmatrix::{matrix_from_gauss_noncentrosymmetric, matrix_from_gauss_with_segments};
-use crate::numeric::CustomNumeric;
+use crate::numeric::RealNumeric;
 use crate::poly::PiecewiseLegendrePolyVector;
 use mdarray::DTensor;
 
@@ -11,7 +11,7 @@ use super::result::SVEResult;
 use super::utils::{extend_to_full_domain, merge_results, remove_weights, svd_to_polynomials};
 
 /// Trait for SVE computation strategies
-pub trait SVEStrategy<T: CustomNumeric> {
+pub trait SVEStrategy<T: RealNumeric> {
     /// Compute the discretized matrices for SVD
     fn matrices(&self) -> Vec<DTensor<T, 2>>;
 
@@ -36,7 +36,7 @@ pub trait SVEStrategy<T: CustomNumeric> {
 /// - Domain extension is caller's responsibility
 pub struct SamplingSVE<T>
 where
-    T: CustomNumeric + Send + Sync + 'static,
+    T: RealNumeric + Send + Sync + 'static,
 {
     segments_x: Vec<T>,
     segments_y: Vec<T>,
@@ -49,7 +49,7 @@ where
 
 impl<T> SamplingSVE<T>
 where
-    T: CustomNumeric + Send + Sync + 'static,
+    T: RealNumeric + Send + Sync + 'static,
 {
     /// Create a new SamplingSVE
     ///
@@ -122,7 +122,7 @@ where
 /// This manages the symmetry: creating reduced kernels, extending to full domain, and merging.
 pub struct CentrosymmSVE<T, K>
 where
-    T: CustomNumeric + Send + Sync + 'static,
+    T: RealNumeric + Send + Sync + 'static,
     K: CentrosymmKernel + KernelProperties,
 {
     kernel: K,
@@ -145,7 +145,7 @@ where
 
 impl<T, K> CentrosymmSVE<T, K>
 where
-    T: CustomNumeric + Send + Sync + Clone + 'static,
+    T: RealNumeric + Send + Sync + Clone + 'static,
     K: CentrosymmKernel + KernelProperties + Clone,
     K::SVEHintsType<T>: SVEHints<T> + Clone,
 {
@@ -233,7 +233,7 @@ where
 
 impl<T, K> SVEStrategy<T> for CentrosymmSVE<T, K>
 where
-    T: CustomNumeric + Send + Sync + Clone + 'static,
+    T: RealNumeric + Send + Sync + Clone + 'static,
     K: CentrosymmKernel + KernelProperties + Clone,
     K::SVEHintsType<T>: SVEHints<T> + Clone,
 {
@@ -276,7 +276,7 @@ where
 #[allow(dead_code)]
 pub struct NonCentrosymmSVE<T, K>
 where
-    T: CustomNumeric + Send + Sync + 'static,
+    T: RealNumeric + Send + Sync + 'static,
     K: AbstractKernel + KernelProperties,
 {
     kernel: K,
@@ -296,7 +296,7 @@ where
 
 impl<T, K> NonCentrosymmSVE<T, K>
 where
-    T: CustomNumeric + Send + Sync + Clone + 'static,
+    T: RealNumeric + Send + Sync + Clone + 'static,
     K: AbstractKernel + KernelProperties + Clone,
     K::SVEHintsType<T>: SVEHints<T> + Clone,
 {
@@ -354,7 +354,7 @@ where
 
 impl<T, K> SVEStrategy<T> for NonCentrosymmSVE<T, K>
 where
-    T: CustomNumeric + Send + Sync + Clone + 'static,
+    T: RealNumeric + Send + Sync + Clone + 'static,
     K: AbstractKernel + KernelProperties + Clone,
     K::SVEHintsType<T>: SVEHints<T> + Clone,
 {

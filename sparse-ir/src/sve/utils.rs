@@ -3,7 +3,7 @@
 use crate::gauss::Rule;
 use crate::interpolation1d::legendre_collocation_matrix;
 use crate::kernel::SymmetryType;
-use crate::numeric::CustomNumeric;
+use crate::numeric::{CustomNumeric, RealNumeric};
 use crate::poly::{PiecewiseLegendrePoly, PiecewiseLegendrePolyVector};
 use mdarray::DTensor;
 
@@ -162,7 +162,7 @@ pub fn extend_to_full_domain(
 /// # Returns
 ///
 /// Vector of piecewise Legendre polynomials
-pub fn svd_to_polynomials<T: CustomNumeric>(
+pub fn svd_to_polynomials<T: RealNumeric>(
     u_or_v: &DTensor<T, 2>,
     segments: &[T],
     gauss_rule: &Rule<f64>,

@@ -7,7 +7,7 @@ use crate::kernel::{
     RegularizedBoseSVEHints, SVEHints, SymmetryType,
 };
 use crate::kernelmatrix::{InterpolatedKernel, matrix_from_gauss};
-use crate::numeric::CustomNumeric;
+use crate::numeric::{CustomNumeric, RealNumeric};
 
 // ========================================================================
 // Basic matrix_from_gauss tests
@@ -61,7 +61,7 @@ fn test_kernel_interpolation_precision_generic<T, K>(
     tolerance_rel: f64,
     symmetry_type: SymmetryType,
 ) where
-    T: CustomNumeric + Clone + std::fmt::Debug + Send + Sync + 'static,
+    T: RealNumeric + Clone + std::fmt::Debug + Send + Sync + 'static,
     K: CentrosymmKernel + KernelProperties + Clone,
 {
     // Create segments for discretization
@@ -181,7 +181,7 @@ fn test_kernel_interpolation_both_symmetries<T, K, H>(
     tolerance_abs_odd: f64,
     tolerance_rel_odd: f64,
 ) where
-    T: CustomNumeric + Clone + std::fmt::Debug + Send + Sync + 'static,
+    T: RealNumeric + Clone + std::fmt::Debug + Send + Sync + 'static,
     K: CentrosymmKernel + KernelProperties + Clone,
     H: SVEHints<T>,
 {

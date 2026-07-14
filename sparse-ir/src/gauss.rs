@@ -9,7 +9,7 @@
 //! where we generally have superexponential convergence for smooth f(x)
 //! with the number of quadrature points.
 
-use crate::numeric::CustomNumeric;
+use crate::numeric::{CustomNumeric, RealNumeric};
 use simba::scalar::ComplexField;
 use std::fmt::Debug;
 
@@ -36,7 +36,7 @@ pub struct Rule<T> {
 
 impl<T> Rule<T>
 where
-    T: CustomNumeric,
+    T: RealNumeric,
 {
     /// Create a new quadrature rule from points and weights.
     ///
@@ -305,7 +305,7 @@ where
 /// CustomNumeric-based implementation for f64 and Df64 support
 impl<T> Rule<T>
 where
-    T: CustomNumeric,
+    T: RealNumeric,
 {
     /// Create a new quadrature rule from points and weights (CustomNumeric version).
     pub fn new_custom(x: Vec<T>, w: Vec<T>, a: T, b: T) -> Self {
@@ -542,7 +542,7 @@ impl Rule<crate::Df64> {
 /// For production use, a more sophisticated algorithm would be preferred.
 fn gauss_legendre_nodes_weights<T>(n: usize) -> (Vec<T>, Vec<T>)
 where
-    T: CustomNumeric + Copy + Debug + std::fmt::Display + 'static,
+    T: RealNumeric + Copy + Debug + std::fmt::Display + 'static,
 {
     if n == 0 {
         return (Vec::new(), Vec::new());
@@ -611,7 +611,7 @@ where
 /// Compute Legendre polynomial P_n(x) and its derivative using recurrence relation.
 fn legendre_polynomial_and_derivative<T>(n: usize, x: T) -> (T, T)
 where
-    T: CustomNumeric + Copy + Debug + std::fmt::Display + 'static,
+    T: RealNumeric + Copy + Debug + std::fmt::Display + 'static,
 {
     if n == 0 {
         return (
@@ -664,7 +664,7 @@ where
 /// A Gauss-Legendre quadrature rule
 pub fn legendre<T>(n: usize) -> Rule<T>
 where
-    T: CustomNumeric + Copy + Debug + std::fmt::Display + 'static,
+    T: RealNumeric + Copy + Debug + std::fmt::Display + 'static,
 {
     if n == 0 {
         return Rule::empty();
@@ -683,7 +683,7 @@ where
 /// Compute Gauss-Legendre quadrature nodes and weights using CustomNumeric
 fn gauss_legendre_nodes_weights_custom<T>(n: usize) -> (Vec<T>, Vec<T>)
 where
-    T: CustomNumeric,
+    T: RealNumeric,
 {
     if n == 0 {
         return (Vec::new(), Vec::new());
@@ -789,7 +789,7 @@ where
 /// Create a Gauss-Legendre quadrature rule with n points on [-1, 1] (CustomNumeric version).
 pub fn legendre_custom<T>(n: usize) -> Rule<T>
 where
-    T: CustomNumeric,
+    T: RealNumeric,
 {
     if n == 0 {
         return Rule::new_custom(
@@ -873,7 +873,7 @@ pub fn legendre_vandermonde<T: CustomNumeric>(x: &[T], degree: usize) -> mdarray
 }
 
 /// Generic Legendre Gauss quadrature rule for CustomNumeric types
-pub fn legendre_generic<T: CustomNumeric + 'static>(n: usize) -> Rule<T> {
+pub fn legendre_generic<T: RealNumeric + 'static>(n: usize) -> Rule<T> {
     if std::any::TypeId::of::<T>() == std::any::TypeId::of::<f64>() {
         // For f64, use the existing legendre function
         let rule_f64 = legendre::<f64>(n);

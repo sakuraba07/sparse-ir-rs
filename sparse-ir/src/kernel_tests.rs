@@ -1,5 +1,6 @@
 use super::*;
 use crate::Df64;
+use crate::numeric::RealNumeric;
 use dashu_base::Approximation;
 use dashu_float::{Context, DBig, round::mode::HalfAway};
 use std::str::FromStr;
@@ -90,7 +91,7 @@ fn test_kernel_compute_precision_generic<K, T>(
     kernel_name: &str,
 ) where
     K: CentrosymmKernel + KernelDbigCompute,
-    T: CustomNumeric,
+    T: RealNumeric,
 {
     // Convert inputs to type T
     // For f64, convert from Df64; for Df64, use directly
@@ -157,7 +158,7 @@ fn test_kernel_compute_precision_generic_noncentrosymm<K, T>(
     kernel_name: &str,
 ) where
     K: AbstractKernel + KernelDbigCompute,
-    T: CustomNumeric,
+    T: RealNumeric,
 {
     // Convert inputs to type T
     // For f64, convert from Df64; for Df64, use directly
@@ -251,7 +252,7 @@ fn test_kernel_compute_reduced_precision_generic<K, T>(
     kernel_name: &str,
 ) where
     K: CentrosymmKernel + KernelDbigCompute,
-    T: CustomNumeric,
+    T: RealNumeric,
 {
     // Convert inputs to type T
     // For f64, convert from Df64; for Df64, use directly
@@ -320,7 +321,7 @@ fn test_kernel_precision_different_lambdas<K, F, T>(
 ) where
     K: CentrosymmKernel + KernelDbigCompute + Clone,
     F: Fn(f64) -> K,
-    T: CustomNumeric + Copy,
+    T: RealNumeric + Copy,
 {
     for &lambda in lambdas {
         let kernel = kernel_constructor(lambda);
@@ -580,7 +581,7 @@ impl SimpleNonCentrosymmKernel {
 }
 
 impl AbstractKernel for SimpleNonCentrosymmKernel {
-    fn compute<T: CustomNumeric + Copy + Debug>(&self, x: T, y: T) -> T {
+    fn compute<T: RealNumeric + Copy + Debug>(&self, x: T, y: T) -> T {
         x + y
     }
 

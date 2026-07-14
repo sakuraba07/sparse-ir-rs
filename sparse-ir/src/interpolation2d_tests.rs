@@ -1,5 +1,6 @@
 use crate::gauss::legendre_generic;
 use crate::interpolation2d::{evaluate_2d_legendre_polynomial, interpolate_2d_legendre};
+use crate::numeric::RealNumeric;
 use crate::{CustomNumeric, Df64, Interpolate2D};
 use mdarray::DTensor;
 use simba::scalar::ComplexField;
@@ -142,7 +143,7 @@ fn test_interpolate2d_struct() {
 }
 
 /// Generic test for Interpolate2D struct
-fn test_interpolate2d_struct_generic<T: CustomNumeric + 'static>() {
+fn test_interpolate2d_struct_generic<T: RealNumeric + 'static>() {
     let n = 3;
     let gauss_x =
         legendre_generic::<T>(n).reseat(T::from_f64_unchecked(-1.0), T::from_f64_unchecked(1.0));

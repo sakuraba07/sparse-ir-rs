@@ -5,7 +5,7 @@
 
 use crate::Df64;
 use crate::col_piv_qr::ColPivQR;
-use crate::numeric::CustomNumeric;
+use crate::numeric::{CustomNumeric, RealNumeric};
 use mdarray::DTensor;
 use nalgebra::{ComplexField, DMatrix, DVector, RealField};
 use num_traits::{One, ToPrimitive, Zero};
@@ -208,7 +208,7 @@ where
         + nalgebra::RealField
         + std::fmt::Debug
         + ToPrimitive
-        + CustomNumeric,
+        + RealNumeric,
 {
     let (m, n) = matrix.shape();
 
@@ -252,7 +252,7 @@ where
     let r_truncated: DMatrix<T> = r_matrix.rows(0, qr_rank).into();
     // Use rtol directly as T
     let rtol_t = config.rtol;
-    let rtol_f64 = rtol_t.to_f64();
+    let rtol_f64 = RealNumeric::to_f64(rtol_t);
     let svd_result = svd_decompose(&r_truncated, rtol_f64);
 
     if svd_result.rank == 0 {
@@ -310,7 +310,7 @@ pub fn tsvd_df64_from_f64(matrix: &DMatrix<f64>, rtol: f64) -> Result<SVDResult<
 /// Compute SVD for DTensor using nalgebra-based TSVD
 ///
 /// Supports both f64 and Df64 types. Uses nalgebra TSVD backend for both.
-pub fn compute_svd_dtensor<T: CustomNumeric + 'static>(
+pub fn compute_svd_dtensor<T: RealNumeric + 'static>(
     matrix: &DTensor<T, 2>,
 ) -> (DTensor<T, 2>, Vec<T>, DTensor<T, 2>) {
     use nalgebra::DMatrix;
@@ -320,7 +320,7 @@ pub fn compute_svd_dtensor<T: CustomNumeric + 'static>(
     if TypeId::of::<T>() == TypeId::of::<f64>() {
         // Convert to DMatrix<f64>
         let matrix_f64 = DMatrix::from_fn(matrix.shape().0, matrix.shape().1, |i, j| {
-            CustomNumeric::to_f64(matrix[[i, j]])
+            RealNumeric::to_f64(matrix[[i, j]])
         });
 
         // Use TSVD with appropriate tolerance for f64
@@ -468,7 +468,7 @@ mod tests {
             + Copy
             + ToPrimitive
             + std::fmt::Debug
-            + crate::numeric::CustomNumeric,
+            + crate::numeric::RealNumeric,
     {
         let h = create_hilbert_matrix_generic::<T>(n);
 

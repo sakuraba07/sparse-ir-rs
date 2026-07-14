@@ -4,7 +4,7 @@
 //! with pre-computed collocation matrices.
 
 use crate::gauss::{Rule, legendre_vandermonde};
-use crate::numeric::CustomNumeric;
+use crate::numeric::{CustomNumeric, RealNumeric};
 use mdarray::DTensor;
 use std::fmt::Debug;
 
@@ -24,7 +24,7 @@ pub struct Interpolate1D<T> {
     pub gauss_rule: Rule<T>,
 }
 
-impl<T: CustomNumeric + Debug + Clone + 'static> Interpolate1D<T> {
+impl<T: RealNumeric + Debug + Clone + 'static> Interpolate1D<T> {
     /// Create a new 1D interpolator from function values and Gauss rule
     ///
     /// # Arguments

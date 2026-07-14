@@ -14,7 +14,7 @@
 //! where ρ'(y) = w(y) ρ(y). The weight function w(y) transforms the original spectral
 //! function ρ(y) into the scaled version ρ'(y) used in the integral equation.
 
-use crate::numeric::CustomNumeric;
+use crate::numeric::{CustomNumeric, RealNumeric};
 use crate::traits::{Statistics, StatisticsType};
 use std::fmt::Debug;
 
@@ -73,7 +73,7 @@ pub trait KernelProperties {
     /// Associated type for SVE hints
     type SVEHintsType<T>: SVEHints<T> + Clone
     where
-        T: Copy + Debug + Send + Sync + CustomNumeric + 'static;
+        T: Copy + Debug + Send + Sync + RealNumeric + 'static;
     /// Power with which the y coordinate scales.
     ///
     /// For most kernels, this is 0 (no scaling).
@@ -122,7 +122,7 @@ pub trait KernelProperties {
     /// @return SVE hints specific to this kernel type
     fn sve_hints<T>(&self, epsilon: f64) -> Self::SVEHintsType<T>
     where
-        T: Copy + Debug + Send + Sync + CustomNumeric + 'static;
+        T: Copy + Debug + Send + Sync + RealNumeric + 'static;
 }
 
 /// Trait for general kernels (both centrosymmetric and non-centrosymmetric)
@@ -141,7 +141,7 @@ pub trait AbstractKernel: Send + Sync {
     /// # Returns
     ///
     /// The kernel value K(x, y)
-    fn compute<T: CustomNumeric + Copy + Debug>(&self, x: T, y: T) -> T;
+    fn compute<T: RealNumeric + Copy + Debug>(&self, x: T, y: T) -> T;
 
     /// Check if the kernel is centrosymmetric
     ///
@@ -166,7 +166,7 @@ pub trait CentrosymmKernel: AbstractKernel {
     ///
     /// K_red(x, y) = K(x, y) + sign * K(x, -y)
     /// where sign = 1 for even symmetry and sign = -1 for odd symmetry
-    fn compute_reduced<T: CustomNumeric + Copy + Debug>(
+    fn compute_reduced<T: RealNumeric + Copy + Debug>(
         &self,
         x: T,
         y: T,
@@ -202,7 +202,7 @@ impl KernelProperties for LogisticKernel {
     type SVEHintsType<T>
         = LogisticSVEHints<T>
     where
-        T: Copy + Debug + Send + Sync + CustomNumeric + 'static;
+        T: Copy + Debug + Send + Sync + RealNumeric + 'static;
     fn ypower(&self) -> i32 {
         0 // No y-power scaling for LogisticKernel
     }
@@ -234,13 +234,13 @@ impl KernelProperties for LogisticKernel {
 
     fn sve_hints<T>(&self, epsilon: f64) -> Self::SVEHintsType<T>
     where
-        T: Copy + Debug + Send + Sync + CustomNumeric + 'static,
+        T: Copy + Debug + Send + Sync + RealNumeric + 'static,
     {
         LogisticSVEHints::new(*self, epsilon)
     }
 }
 
-pub fn compute_logistic_kernel<T: CustomNumeric>(lambda: f64, x: T, y: T) -> T {
+pub fn compute_logistic_kernel<T: RealNumeric>(lambda: f64, x: T, y: T) -> T {
     let x_plus: T = T::from_f64_unchecked(1.0) + x;
     let x_minus: T = T::from_f64_unchecked(1.0) - x;
 
@@ -258,7 +258,7 @@ pub fn compute_logistic_kernel<T: CustomNumeric>(lambda: f64, x: T, y: T) -> T {
     numerator / denominator
 }
 
-fn compute_logistic_kernel_reduced_odd<T: CustomNumeric>(lambda: f64, x: T, y: T) -> T {
+fn compute_logistic_kernel_reduced_odd<T: RealNumeric>(lambda: f64, x: T, y: T) -> T {
     // For x * y around 0, antisymmetrization introduces cancellation, which
     // reduces the relative precision. To combat this, we replace the
     // values with the explicit form
@@ -276,7 +276,7 @@ fn compute_logistic_kernel_reduced_odd<T: CustomNumeric>(lambda: f64, x: T, y: T
 }
 
 impl AbstractKernel for LogisticKernel {
-    fn compute<T: CustomNumeric + Copy + Debug>(&self, x: T, y: T) -> T {
+    fn compute<T: RealNumeric + Copy + Debug>(&self, x: T, y: T) -> T {
         compute_logistic_kernel(self.lambda, x, y)
     }
 
@@ -286,7 +286,7 @@ impl AbstractKernel for LogisticKernel {
 }
 
 impl CentrosymmKernel for LogisticKernel {
-    fn compute_reduced<T: CustomNumeric + Copy + Debug>(
+    fn compute_reduced<T: RealNumeric + Copy + Debug>(
         &self,
         x: T,
         y: T,
@@ -326,7 +326,7 @@ where
 
 impl<T> SVEHints<T> for LogisticSVEHints<T>
 where
-    T: Copy + Debug + Send + Sync + CustomNumeric,
+    T: Copy + Debug + Send + Sync + RealNumeric,
 {
     fn segments_x(&self) -> Vec<T> {
         // Direct implementation that generates only non-negative sample points
@@ -513,7 +513,7 @@ impl RegularizedBoseKernel {
     /// * `x_minus` - Precomputed 1 - x (optional, for efficiency)
     fn compute_impl<T>(&self, x: T, y: T, x_plus: Option<T>, x_minus: Option<T>) -> T
     where
-        T: CustomNumeric,
+        T: RealNumeric,
     {
         // Convert lambda and constants to type T at the beginning
         let lambda_t = T::from_f64_unchecked(self.lambda);
@@ -571,7 +571,7 @@ impl KernelProperties for RegularizedBoseKernel {
     type SVEHintsType<T>
         = RegularizedBoseSVEHints<T>
     where
-        T: Copy + Debug + Send + Sync + CustomNumeric + 'static;
+        T: Copy + Debug + Send + Sync + RealNumeric + 'static;
 
     fn ypower(&self) -> i32 {
         1 // Spectral function transforms as ρ'(y) = y * ρ(y)
@@ -603,14 +603,14 @@ impl KernelProperties for RegularizedBoseKernel {
 
     fn sve_hints<T>(&self, epsilon: f64) -> Self::SVEHintsType<T>
     where
-        T: Copy + Debug + Send + Sync + CustomNumeric + 'static,
+        T: Copy + Debug + Send + Sync + RealNumeric + 'static,
     {
         RegularizedBoseSVEHints::new(*self, epsilon)
     }
 }
 
 impl AbstractKernel for RegularizedBoseKernel {
-    fn compute<T: CustomNumeric + Copy + Debug>(&self, x: T, y: T) -> T {
+    fn compute<T: RealNumeric + Copy + Debug>(&self, x: T, y: T) -> T {
         let x_plus = Some(T::from_f64_unchecked(1.0) + x);
         let x_minus = Some(T::from_f64_unchecked(1.0) - x);
         self.compute_impl(x, y, x_plus, x_minus)
@@ -622,7 +622,7 @@ impl AbstractKernel for RegularizedBoseKernel {
 }
 
 impl CentrosymmKernel for RegularizedBoseKernel {
-    fn compute_reduced<T: CustomNumeric + Copy + Debug>(
+    fn compute_reduced<T: RealNumeric + Copy + Debug>(
         &self,
         x: T,
         y: T,
@@ -678,7 +678,7 @@ where
 
 impl<T> SVEHints<T> for RegularizedBoseSVEHints<T>
 where
-    T: Copy + Debug + Send + Sync + CustomNumeric + 'static,
+    T: Copy + Debug + Send + Sync + RealNumeric + 'static,
 {
     fn segments_x(&self) -> Vec<T> {
         // Returns segments for x >= 0 domain only

@@ -20,7 +20,6 @@ use std::fmt::Debug;
 pub trait CustomNumeric:
     Copy
     + Debug
-    + PartialOrd
     + std::fmt::Display
     + std::ops::Add<Output = Self>
     + std::ops::Sub<Output = Self>
@@ -36,15 +35,14 @@ pub trait CustomNumeric:
     /// Renamed to avoid conflict with num_traits::FromPrimitive::from_f64
     fn from_f64_unchecked(x: f64) -> Self;
 
-    /// Convert from any CustomNumeric type to Self (generic conversion)
+    /// Convert from a real numeric type to Self (generic conversion)
     ///
-    /// This allows conversion between different numeric types while preserving precision.
-    /// Can be called as T::convert_from(other_numeric_value)
-    fn convert_from<U: CustomNumeric + 'static>(value: U) -> Self;
-
-
-    /// Convert to f64
-    fn to_f64(self) -> f64;
+    /// This allows conversion between different real numeric types while
+    /// preserving precision. Can be called as T::convert_from(real_value).
+    /// The source is bounded to [`RealNumeric`] because the conversion goes
+    /// through an `f64` magnitude; complex `Self` types are still constructed
+    /// from real sources via [`CustomNumeric::from_f64_unchecked`].
+    fn convert_from<U: RealNumeric + 'static>(value: U) -> Self;
 
     /// Get machine epsilon
     fn epsilon() -> Self;
@@ -52,22 +50,14 @@ pub trait CustomNumeric:
     /// Get high-precision PI constant
     fn pi() -> Self;
 
-    /// Maximum of two values (not provided by ComplexField)
-    fn max(self, other: Self) -> Self;
-
-    /// Minimum of two values (not provided by ComplexField)
-    fn min(self, other: Self) -> Self;
-
     /// Check if the value is valid (not NaN/infinite)
     fn is_valid(&self) -> bool;
-
-    /// Check if the value is finite (not NaN or infinite)
 
     /// Get absolute value as the same type (convenience method)
     ///
     /// This method wraps ComplexField::abs() and converts the result back to Self
     /// to avoid type conversion issues in generic code.
-    /// Note: Only abs() has this problem - other math functions (exp, cos, sin, sqrt) 
+    /// Note: Only abs() has this problem - other math functions (exp, cos, sin, sqrt)
     /// already return Self directly from ComplexField.
     fn abs_as_same_type(self) -> Self;
 
@@ -78,13 +68,31 @@ pub trait CustomNumeric:
     fn exp_m1(self) -> Self;
 }
 
+/// Real-only numeric operations, separated from [`CustomNumeric`] so that
+/// complex scalar types can implement `CustomNumeric` without providing a total
+/// order or a sign-preserving scalar projection.
+///
+/// `f64` and `Df64` implement both traits, so existing real code paths are
+/// unchanged: generic functions that need ordering, `to_f64`, `max`, or `min`
+/// simply bound `T: RealNumeric` instead of `T: CustomNumeric`.
+pub trait RealNumeric: CustomNumeric + PartialOrd {
+    /// Convert to f64 (sign-preserving; only meaningful for real types).
+    fn to_f64(self) -> f64;
+
+    /// Maximum of two values (not provided by ComplexField).
+    fn max(self, other: Self) -> Self;
+
+    /// Minimum of two values (not provided by ComplexField).
+    fn min(self, other: Self) -> Self;
+}
+
 /// f64 implementation of CustomNumeric
 impl CustomNumeric for f64 {
     fn from_f64_unchecked(x: f64) -> Self {
         x
     }
 
-    fn convert_from<U: CustomNumeric + 'static>(value: U) -> Self {
+    fn convert_from<U: RealNumeric + 'static>(value: U) -> Self {
         // Use match to optimize conversion based on the source type
         // Note: Using TypeId for compile-time optimization, but falling back to safe conversion
         match std::any::TypeId::of::<U>() {
@@ -104,24 +112,12 @@ impl CustomNumeric for f64 {
         }
     }
 
-    fn to_f64(self) -> f64 {
-        self
-    }
-
     fn epsilon() -> Self {
         f64::EPSILON
     }
 
     fn pi() -> Self {
         std::f64::consts::PI
-    }
-
-    fn max(self, other: Self) -> Self {
-        self.max(other)
-    }
-
-    fn min(self, other: Self) -> Self {
-        self.min(other)
     }
 
     fn is_valid(&self) -> bool {
@@ -137,13 +133,28 @@ impl CustomNumeric for f64 {
     }
 }
 
+/// f64 implementation of RealNumeric
+impl RealNumeric for f64 {
+    fn to_f64(self) -> f64 {
+        self
+    }
+
+    fn max(self, other: Self) -> Self {
+        f64::max(self, other)
+    }
+
+    fn min(self, other: Self) -> Self {
+        f64::min(self, other)
+    }
+}
+
 /// Df64 implementation of CustomNumeric
 impl CustomNumeric for Df64 {
     fn from_f64_unchecked(x: f64) -> Self {
         Df64::from(x)
     }
 
-    fn convert_from<U: CustomNumeric + 'static>(value: U) -> Self {
+    fn convert_from<U: RealNumeric + 'static>(value: U) -> Self {
         // Use match to optimize conversion based on the source type
         // Note: Using TypeId for compile-time optimization, but falling back to safe conversion
         match std::any::TypeId::of::<U>() {
@@ -172,13 +183,6 @@ impl CustomNumeric for Df64 {
         }
     }
 
-    fn to_f64(self) -> f64 {
-        // Use hi() and lo() methods for better precision
-        let hi = self.hi();
-        let lo = self.lo();
-        hi + lo
-    }
-
     fn epsilon() -> Self {
         // Df64::EPSILON = f64::EPSILON * f64::EPSILON / 2.0
         let epsilon_value = f64::EPSILON * f64::EPSILON / 2.0;
@@ -187,14 +191,6 @@ impl CustomNumeric for Df64 {
 
     fn pi() -> Self {
         Df64::from(std::f64::consts::PI)
-    }
-
-    fn max(self, other: Self) -> Self {
-        if self > other { self } else { other }
-    }
-
-    fn min(self, other: Self) -> Self {
-        if self < other { self } else { other }
     }
 
     fn is_valid(&self) -> bool {
@@ -209,6 +205,65 @@ impl CustomNumeric for Df64 {
     fn exp_m1(self) -> Self {
         // Use ComplexField::exp_m1() for Df64
         ComplexField::exp_m1(self)
+    }
+}
+
+/// Df64 implementation of RealNumeric
+impl RealNumeric for Df64 {
+    fn to_f64(self) -> f64 {
+        // Use hi() and lo() methods for better precision
+        let hi = self.hi();
+        let lo = self.lo();
+        hi + lo
+    }
+
+    fn max(self, other: Self) -> Self {
+        if self > other { self } else { other }
+    }
+
+    fn min(self, other: Self) -> Self {
+        if self < other { self } else { other }
+    }
+}
+
+/// Complex<f64> implementation of CustomNumeric.
+///
+/// Complex scalars deliberately do NOT implement [`RealNumeric`]: they have no
+/// total order and no sign-preserving projection to `f64`. Real-only quantities
+/// derived from a complex value (e.g. its modulus) are obtained through
+/// [`simba::scalar::ComplexField`] (`abs`, `modulus`, ...), which returns the
+/// real field type.
+impl CustomNumeric for num_complex::Complex<f64> {
+    fn from_f64_unchecked(x: f64) -> Self {
+        num_complex::Complex::new(x, 0.0)
+    }
+
+    fn convert_from<U: RealNumeric + 'static>(value: U) -> Self {
+        // Real source -> complex with zero imaginary part.
+        num_complex::Complex::new(value.to_f64(), 0.0)
+    }
+
+    fn epsilon() -> Self {
+        num_complex::Complex::new(f64::EPSILON, 0.0)
+    }
+
+    fn pi() -> Self {
+        num_complex::Complex::new(std::f64::consts::PI, 0.0)
+    }
+
+    fn is_valid(&self) -> bool {
+        self.re.is_finite() && self.im.is_finite()
+    }
+
+    fn abs_as_same_type(self) -> Self {
+        // Modulus, represented as a (purely real) complex value.
+        num_complex::Complex::new(self.norm(), 0.0)
+    }
+
+    fn exp_m1(self) -> Self {
+        // No catastrophic-cancellation-safe complex expm1 here; the plain
+        // definition is adequate for the complex paths that use this.
+        self.exp() - num_complex::Complex::new(1.0, 0.0)
     }
 }
 
@@ -271,6 +326,47 @@ mod tests {
     }
 
     // Note: Df64ArrayOps tests removed after ndarray migration
+
+    #[test]
+    fn test_complex_f64_custom_numeric() {
+        use num_complex::Complex;
+        type C = Complex<f64>;
+
+        // from_f64_unchecked builds a purely real complex.
+        let z = <C as CustomNumeric>::from_f64_unchecked(2.5);
+        assert_eq!(z, Complex::new(2.5, 0.0));
+
+        // convert_from a real source (f64 and Df64) -> real complex.
+        assert_eq!(
+            <C as CustomNumeric>::convert_from(3.0_f64),
+            Complex::new(3.0, 0.0)
+        );
+        assert_eq!(
+            <C as CustomNumeric>::convert_from(Df64::from_f64_unchecked(-1.5)),
+            Complex::new(-1.5, 0.0)
+        );
+
+        // abs_as_same_type returns the modulus as a real complex.
+        let w = Complex::new(3.0, 4.0);
+        assert_eq!(w.abs_as_same_type(), Complex::new(5.0, 0.0));
+
+        // is_valid catches NaN/inf in either component.
+        assert!(CustomNumeric::is_valid(&Complex::new(1.0, -2.0)));
+        assert!(!CustomNumeric::is_valid(&Complex::new(f64::NAN, 0.0)));
+        assert!(!CustomNumeric::is_valid(&Complex::new(0.0, f64::INFINITY)));
+
+        // Arithmetic and ComplexField math are available through the bound.
+        let a = Complex::new(1.0, 1.0);
+        let b = Complex::new(2.0, -3.0);
+        assert_eq!(a + b, Complex::new(3.0, -2.0));
+        assert_eq!(a * b, Complex::new(5.0, -1.0));
+        assert!(CustomNumeric::is_valid(&a.exp()));
+        assert!(CustomNumeric::is_valid(&a.sqrt()));
+
+        // pi/epsilon constants are real-valued complex.
+        assert_eq!(<C as CustomNumeric>::pi().im, 0.0);
+        assert!(<C as CustomNumeric>::epsilon().re > 0.0);
+    }
 
     #[test]
     fn test_precision_comparison() {
