@@ -1,0 +1,95 @@
+== condition numbers (median / max over bases), points / L
+  ('logistic', 'full', 'false', 'false'): cond median 159 max 1.92e+03, points/L 1.01
+  ('logistic', 'full', 'false', 'true'): cond median 192 max 2.72e+03, points/L 0.51
+  ('logistic', 'full', 'true', 'false'): cond median 158 max 1.92e+03, points/L 1.13
+  ('logistic', 'full', 'true', 'true'): cond median 192 max 2.72e+03, points/L 0.57
+  ('logistic', 'id', 'false', 'false'): cond median 172 max 2.05e+03, points/L 1.01
+  ('logistic', 'id', 'false', 'true'): cond median 206 max 2.89e+03, points/L 0.51
+  ('logistic', 'id', 'true', 'false'): cond median 172 max 2.05e+03, points/L 1.13
+  ('logistic', 'id', 'true', 'true'): cond median 206 max 2.89e+03, points/L 0.57
+  ('logistic', 'notail', 'false', 'false'): cond median 156 max 1.88e+03, points/L 1.01
+  ('logistic', 'notail', 'false', 'true'): cond median 188 max 2.66e+03, points/L 0.51
+  ('logistic', 'notail', 'true', 'false'): cond median 156 max 1.88e+03, points/L 1.13
+  ('logistic', 'notail', 'true', 'true'): cond median 188 max 2.66e+03, points/L 0.57
+  ('logistic', 'sign', 'false', 'false'): cond median 177 max 2.13e+03, points/L 1.01
+  ('logistic', 'sign', 'false', 'true'): cond median 213 max 3.01e+03, points/L 0.51
+  ('logistic', 'sign', 'true', 'false'): cond median 102 max 1.23e+03, points/L 1.07
+  ('logistic', 'sign', 'true', 'true'): cond median 137 max 1.74e+03, points/L 0.52
+  ('windowed', 'full', 'false', 'false'): cond median 115 max 1.56e+03, points/L 1.01
+  ('windowed', 'full', 'false', 'true'): cond median 142 max 2.2e+03, points/L 0.51
+  ('windowed', 'full', 'true', 'false'): cond median 115 max 1.56e+03, points/L 1.14
+  ('windowed', 'full', 'true', 'true'): cond median 142 max 2.19e+03, points/L 0.58
+  ('windowed', 'id', 'false', 'false'): cond median 124 max 1.7e+03, points/L 1.01
+  ('windowed', 'id', 'false', 'true'): cond median 153 max 2.4e+03, points/L 0.51
+  ('windowed', 'id', 'true', 'false'): cond median 124 max 1.69e+03, points/L 1.14
+  ('windowed', 'id', 'true', 'true'): cond median 152 max 2.4e+03, points/L 0.58
+  ('windowed', 'notail', 'false', 'false'): cond median 112 max 1.53e+03, points/L 1.01
+  ('windowed', 'notail', 'false', 'true'): cond median 140 max 2.15e+03, points/L 0.51
+  ('windowed', 'notail', 'true', 'false'): cond median 109 max 1.53e+03, points/L 1.14
+  ('windowed', 'notail', 'true', 'true'): cond median 135 max 2.15e+03, points/L 0.58
+== criterion: full / id
+  conditions 2268, sigma>0: 1512, ratio<=0.8: 106 (7%), ratio>1.25: 309, median ratio 0.976
+  worst 3.278 {'kernel': 'win(-1;0.02)', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 3.277 {'kernel': 'win(-1;0.02)', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'true', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 3.224 {'kernel': 'win(-0.3;1)', 'stat': 'Fermionic', 'lambda': '1e2', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  worst 2.930 {'kernel': 'win(-0.3;1)', 'stat': 'Bosonic', 'lambda': '1e2', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'poles', 'sigma': '0e0'}
+  worst 2.753 {'kernel': 'win(-0.3;1)', 'stat': 'Bosonic', 'lambda': '1e4', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  worst 2.676 {'kernel': 'win(-1;0.02)', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  worst 2.651 {'kernel': 'win(-0.3;1)', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-10', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 2.649 {'kernel': 'win(-0.3;1)', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-10', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  best  0.193 {'kernel': 'win(-1;0.02)', 'stat': 'Fermionic', 'lambda': '1e4', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  best  0.193 {'kernel': 'win(-1;0.02)', 'stat': 'Fermionic', 'lambda': '1e4', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'true', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  best  0.201 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+CRITERION: keep exchange step = False
+== ablation: notail / id
+  conditions 2268, sigma>0: 1512, ratio<=0.8: 6 (0%), ratio>1.25: 84, median ratio 0.948
+  worst 3.872 {'kernel': 'logistic', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  worst 3.555 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  worst 3.550 {'kernel': 'win(-0.3;1)', 'stat': 'Fermionic', 'lambda': '1e2', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  worst 3.407 {'kernel': 'win(-0.01;1)', 'stat': 'Bosonic', 'lambda': '1e4', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'true', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  worst 2.996 {'kernel': 'win(-0.01;1)', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 2.576 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 2.475 {'kernel': 'win(-0.01;1)', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'poles', 'sigma': '0e0'}
+  worst 2.344 {'kernel': 'win(-1;0.02)', 'stat': 'Bosonic', 'lambda': '1e4', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  best  0.267 {'kernel': 'win(-0.01;1)', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  best  0.327 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  best  0.389 {'kernel': 'win(-1;0.02)', 'stat': 'Fermionic', 'lambda': '1e2', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'true', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+== tail effect: full / notail
+  conditions 2268, sigma>0: 1512, ratio<=0.8: 79 (5%), ratio>1.25: 334, median ratio 1.034
+  worst 3.963 {'kernel': 'win(-1;0.02)', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 3.963 {'kernel': 'win(-1;0.02)', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'true', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 2.775 {'kernel': 'win(-0.3;1)', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-10', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 2.766 {'kernel': 'win(-0.3;1)', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-10', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 2.571 {'kernel': 'win(-1;0.02)', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'lowpoles', 'sigma': '1e-8'}
+  worst 2.568 {'kernel': 'win(-1;0.02)', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  worst 2.568 {'kernel': 'win(-1;0.02)', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  worst 2.565 {'kernel': 'win(-0.01;1)', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  best  0.230 {'kernel': 'win(-1;0.02)', 'stat': 'Fermionic', 'lambda': '1e4', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  best  0.230 {'kernel': 'win(-1;0.02)', 'stat': 'Fermionic', 'lambda': '1e4', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'true', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  best  0.234 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+== new vs sign changes: full / sign
+  conditions 648, sigma>0: 432, ratio<=0.8: 112 (26%), ratio>1.25: 177, median ratio 1.013
+  worst 23.301 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 22.950 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 21.785 {'kernel': 'logistic', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-10', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 21.770 {'kernel': 'logistic', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-10', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 12.598 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-10', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 12.308 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-10', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 11.599 {'kernel': 'logistic', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 10.856 {'kernel': 'logistic', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  best  0.118 {'kernel': 'logistic', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  best  0.201 {'kernel': 'logistic', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'poles', 'sigma': '0e0'}
+  best  0.354 {'kernel': 'logistic', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+== ID vs sign changes: id / sign
+  conditions 648, sigma>0: 432, ratio<=0.8: 123 (28%), ratio>1.25: 157, median ratio 0.993
+  worst 17.331 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 17.070 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 14.560 {'kernel': 'logistic', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-10', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 14.552 {'kernel': 'logistic', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-10', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 10.435 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-10', 'mitigate': 'true', 'positive_only': 'false', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 10.166 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-10', 'mitigate': 'true', 'positive_only': 'true', 'spectrum': 'semicircle', 'sigma': '0e0'}
+  worst 8.094 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  worst 8.094 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'true', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  best  0.122 {'kernel': 'logistic', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'lowpoles', 'sigma': '0e0'}
+  best  0.210 {'kernel': 'logistic', 'stat': 'Bosonic', 'lambda': '1e6', 'eps': '1e-15', 'mitigate': 'false', 'positive_only': 'false', 'spectrum': 'poles', 'sigma': '0e0'}
+  best  0.377 {'kernel': 'logistic', 'stat': 'Fermionic', 'lambda': '1e6', 'eps': '1e-6', 'mitigate': 'false', 'positive_only': 'true', 'spectrum': 'poles', 'sigma': '1e-4'}
