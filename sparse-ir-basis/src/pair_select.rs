@@ -16,6 +16,37 @@
 //! objective decreases.
 
 use nalgebra::{DMatrix, DMatrixView, DVector, Matrix2};
+use std::sync::atomic::{AtomicU8, Ordering};
+
+/// Variants of the selection, for the comparison of the methods (benchmark
+/// branch only)
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectionVariant {
+    /// Greedy start, exchanges with the aliasing tail, oversampling (default)
+    Full,
+    /// Greedy start and oversampling only: the ID (pivoted QR on pair rows)
+    Id,
+    /// As `Full`, but without the aliasing tail in the exchanges
+    ExchangeWithoutTail,
+}
+
+static VARIANT: AtomicU8 = AtomicU8::new(0);
+
+/// Select the variant of all later selections (benchmark branch only)
+#[doc(hidden)]
+pub fn set_variant(variant: SelectionVariant) {
+    VARIANT.store(variant as u8, Ordering::SeqCst);
+}
+
+/// The variant selected by [`set_variant`]
+pub(crate) fn variant() -> SelectionVariant {
+    match VARIANT.load(Ordering::SeqCst) {
+        1 => SelectionVariant::Id,
+        2 => SelectionVariant::ExchangeWithoutTail,
+        _ => SelectionVariant::Full,
+    }
+}
 
 /// An exchange is made only if it lowers the objective by more than this
 /// fraction, which ends the exchanges on near-ties instead of cycling.
@@ -52,7 +83,7 @@ pub(crate) fn select_pairs(
         return Vec::new();
     }
     let mut pairs = greedy_pairs(&a.columns(0, n_cols), &fixed.columns(0, n_cols), n_cols);
-    if fixed.nrows() + 2 * pairs.len() == n_cols {
+    if fixed.nrows() + 2 * pairs.len() == n_cols && variant() != SelectionVariant::Id {
         exchange_pairs(a, fixed, n_cols, &mut pairs);
     }
     add_pairs_oversampling(

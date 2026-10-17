@@ -980,3 +980,54 @@ fn test_evaluate_at_many_on_the_pool_matches_serial() {
         assert_eq!(pooled[i], uhat.evaluate_at(freq), "frequency {i}");
     }
 }
+
+/// A bosonic pair selection always has n = 0 and an odd number of points per
+/// sign, also when fewer functions than requested points are available
+/// (review of #342: β = 100, window (-0.3, 1), ε = 1e-8, L = 22, 44 points
+/// requested gave 34 points without n = 0); a fermionic one an even number.
+#[test]
+fn test_pair_selection_keeps_n0_when_functions_run_out() {
+    use crate::kernel::LogisticKernelWindowed;
+    use crate::polyfourier::{PiecewiseLegendreFTVector, pair_sampling_points};
+
+    fn check<S: StatisticsType + 'static>() {
+        let kernel = LogisticKernelWindowed::from_physical(100.0, -0.3, 1.0).unwrap();
+        let basis = FiniteTempBasis::<_, S>::new(kernel, 100.0, Some(1e-8), None).unwrap();
+        let l = basis.size();
+        let bosonic = S::STATISTICS == Statistics::Bosonic;
+        for n_funcs in [l, l + 1, l + 2, l + 3] {
+            let uhat = PiecewiseLegendreFTVector::from_vector(
+                basis.uhat_full().polyvec[..n_funcs].to_vec(),
+            );
+            for n_points in [l - 1, l, l + 1, 2 * l] {
+                for (positive_only, mitigate) in [(false, false), (true, false), (false, true)] {
+                    let ns: Vec<i64> =
+                        pair_sampling_points(&uhat, n_points, positive_only, mitigate)
+                            .unwrap()
+                            .iter()
+                            .map(|f| f.n())
+                            .collect();
+                    let case = format!(
+                        "{:?}, {n_funcs} functions, {n_points} points, positive_only = \
+                         {positive_only}, mitigate = {mitigate}: {ns:?}",
+                        S::STATISTICS
+                    );
+                    let positive = ns.iter().filter(|&&n| n > 0).count();
+                    assert_eq!(ns.contains(&0), bosonic, "{case}");
+                    if !positive_only {
+                        assert_eq!(ns.len(), 2 * positive + usize::from(bosonic), "{case}");
+                    }
+                    // Without oversampling: min(n_points rounded up, n_funcs
+                    // rounded down) rows, to the parity of the statistics
+                    if !mitigate {
+                        let rows = 2 * positive + usize::from(bosonic);
+                        assert!(rows <= n_funcs, "{case}");
+                        assert!(rows + 1 >= n_points.min(n_funcs), "{case}");
+                    }
+                }
+            }
+        }
+    }
+    check::<Bosonic>();
+    check::<Fermionic>();
+}

@@ -923,14 +923,25 @@ pub(crate) fn pair_sampling_points<S: StatisticsType + 'static>(
         return Ok(Vec::new());
     }
     let bosonic = S::STATISTICS == Statistics::Bosonic;
-    // Number of rows (and fitted columns) of the square selection
+    // Number of rows (and fitted columns) of the square selection: odd for
+    // bosons (n = 0 and pairs), even for fermions; rounded up, unless there
+    // are not enough functions, then down (a bosonic set always has n = 0).
     let n_cols = if bosonic {
         n_points + 1 - n_points % 2
     } else {
         n_points + n_points % 2
-    }
-    .min(n_funcs);
-    let n_used = (n_cols + MATSUBARA_SELECTION_TAIL).min(n_funcs);
+    };
+    let n_cols = if n_cols <= n_funcs {
+        n_cols
+    } else if (n_funcs % 2 == 1) == bosonic {
+        n_funcs
+    } else {
+        n_funcs - 1
+    };
+    let n_used = match crate::pair_select::variant() {
+        crate::pair_select::SelectionVariant::ExchangeWithoutTail => n_cols,
+        _ => (n_cols + MATSUBARA_SELECTION_TAIL).min(n_funcs),
+    };
     let zeta = i64::from(!bosonic);
     // The candidates 2k + ζ have the parity of the statistics.
     let freqs: Vec<MatsubaraFreq<S>> = DEFAULT_GRID
