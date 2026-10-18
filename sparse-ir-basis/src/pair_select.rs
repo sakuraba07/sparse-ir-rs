@@ -33,6 +33,36 @@ pub enum SelectionVariant {
 
 static VARIANT: AtomicU8 = AtomicU8::new(0);
 
+/// Criteria of the oversampling, for the comparison (benchmark branch only)
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OversamplingCriterion {
+    /// Largest growth of `det(FᵀF)` (D-optimal, default)
+    D,
+    /// Largest decrease of `trace((FᵀF)⁻¹)` (A-optimal)
+    A,
+    /// Largest `‖A_I q‖²` for the eigenvector `q` of the smallest eigenvalue
+    /// of `FᵀF` (E-optimal to first order)
+    E,
+}
+
+static OVERSAMPLING: AtomicU8 = AtomicU8::new(0);
+
+/// Select the oversampling criterion of all later selections (benchmark
+/// branch only)
+#[doc(hidden)]
+pub fn set_oversampling(criterion: OversamplingCriterion) {
+    OVERSAMPLING.store(criterion as u8, Ordering::SeqCst);
+}
+
+fn oversampling() -> OversamplingCriterion {
+    match OVERSAMPLING.load(Ordering::SeqCst) {
+        1 => OversamplingCriterion::A,
+        2 => OversamplingCriterion::E,
+        _ => OversamplingCriterion::D,
+    }
+}
+
 /// Select the variant of all later selections (benchmark branch only)
 #[doc(hidden)]
 pub fn set_variant(variant: SelectionVariant) {
@@ -354,10 +384,20 @@ fn add_pairs_oversampling(
     }
     for _ in 0..n_extra {
         let rows = selected_rows(a, fixed, pairs);
-        let Some(gram_inv) = (rows.transpose() * &rows).try_inverse() else {
+        let gram = rows.transpose() * &rows;
+        let Some(gram_inv) = gram.clone().try_inverse() else {
             return;
         };
         let ag = a * gram_inv;
+        let criterion = oversampling();
+        let q_min = if criterion == OversamplingCriterion::E {
+            let eig = gram.symmetric_eigen();
+            let k = eig.eigenvalues.imin();
+            Some(eig.eigenvectors.column(k).into_owned())
+        } else {
+            None
+        };
+        let aq = q_min.as_ref().map(|q| a * q);
         let growth: Vec<f64> = (0..n_pairs)
             .map(|p| {
                 let (i, j) = (2 * p, 2 * p + 1);
@@ -367,7 +407,26 @@ fn add_pairs_oversampling(
                     ag.row(j).dot(&a.row(i)),
                     ag.row(j).dot(&a.row(j)),
                 );
-                (Matrix2::identity() + h).determinant()
+                match criterion {
+                    OversamplingCriterion::D => (Matrix2::identity() + h).determinant(),
+                    OversamplingCriterion::A => {
+                        // trace((G + A_IᵀA_I)⁻¹) = trace(G⁻¹) − trace((I + H)⁻¹ W_I W_Iᵀ)
+                        // with W = A G⁻¹, H = W_I A_Iᵀ
+                        let m = Matrix2::new(
+                            ag.row(i).dot(&ag.row(i)),
+                            ag.row(i).dot(&ag.row(j)),
+                            ag.row(j).dot(&ag.row(i)),
+                            ag.row(j).dot(&ag.row(j)),
+                        );
+                        (Matrix2::identity() + h)
+                            .try_inverse()
+                            .map_or(f64::NEG_INFINITY, |inv| (inv * m).trace())
+                    }
+                    OversamplingCriterion::E => {
+                        let aq = aq.as_ref().unwrap();
+                        aq[i] * aq[i] + aq[j] * aq[j]
+                    }
+                }
             })
             .collect();
         let Some(best) = (0..n_pairs)

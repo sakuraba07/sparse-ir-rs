@@ -7,6 +7,10 @@
   ('logistic', 'id', 'false', 'true'): cond median 206 max 2.89e+03, points/L 0.51
   ('logistic', 'id', 'true', 'false'): cond median 172 max 2.05e+03, points/L 1.13
   ('logistic', 'id', 'true', 'true'): cond median 206 max 2.89e+03, points/L 0.57
+  ('logistic', 'id-A', 'true', 'false'): cond median 82.5 max 763, points/L 1.13
+  ('logistic', 'id-A', 'true', 'true'): cond median 106 max 1.07e+03, points/L 0.57
+  ('logistic', 'id-E', 'true', 'false'): cond median 75.6 max 669, points/L 1.13
+  ('logistic', 'id-E', 'true', 'true'): cond median 93.4 max 945, points/L 0.57
   ('logistic', 'notail', 'false', 'false'): cond median 156 max 1.88e+03, points/L 1.01
   ('logistic', 'notail', 'false', 'true'): cond median 188 max 2.66e+03, points/L 0.51
   ('logistic', 'notail', 'true', 'false'): cond median 156 max 1.88e+03, points/L 1.13
@@ -23,6 +27,10 @@
   ('windowed', 'id', 'false', 'true'): cond median 153 max 2.4e+03, points/L 0.51
   ('windowed', 'id', 'true', 'false'): cond median 124 max 1.69e+03, points/L 1.14
   ('windowed', 'id', 'true', 'true'): cond median 152 max 2.4e+03, points/L 0.58
+  ('windowed', 'id-A', 'true', 'false'): cond median 66.5 max 614, points/L 1.14
+  ('windowed', 'id-A', 'true', 'true'): cond median 77.6 max 867, points/L 0.58
+  ('windowed', 'id-E', 'true', 'false'): cond median 60.3 max 543, points/L 1.14
+  ('windowed', 'id-E', 'true', 'true'): cond median 76.1 max 768, points/L 0.58
   ('windowed', 'notail', 'false', 'false'): cond median 112 max 1.53e+03, points/L 1.01
   ('windowed', 'notail', 'false', 'true'): cond median 140 max 2.15e+03, points/L 0.51
   ('windowed', 'notail', 'true', 'false'): cond median 109 max 1.53e+03, points/L 1.14

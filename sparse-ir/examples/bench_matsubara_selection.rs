@@ -21,7 +21,9 @@ use sparse_ir::freq::MatsubaraFreq;
 use sparse_ir::kernel::{BasisKernel, LogisticKernel, LogisticKernelWindowed};
 use sparse_ir::traits::{Bosonic, Fermionic, Statistics, StatisticsType};
 use sparse_ir::{MatsubaraSampling, MatsubaraSamplingPositiveOnly};
-use sparse_ir_basis::pair_select::{SelectionVariant, set_variant};
+use sparse_ir_basis::pair_select::{
+    OversamplingCriterion, SelectionVariant, set_oversampling, set_variant,
+};
 use std::fmt::Write as _;
 use std::io::Write as _;
 
@@ -228,9 +230,12 @@ fn run_basis<K, S>(
     if centrosymmetric {
         methods.push("sign");
     }
-    methods.extend(["id", "full", "notail"]);
+    methods.extend(["id", "full", "notail", "id-A", "id-E"]);
     for &method in &methods {
         for mitigate in [false, true] {
+            if method.starts_with("id-") && !mitigate {
+                continue; // the criteria differ only in the oversampling
+            }
             for positive_only in [false, true] {
                 let points = match method {
                     "sign" => basis.matsubara_sampling_points(
@@ -240,9 +245,14 @@ fn run_basis<K, S>(
                     ),
                     m => {
                         set_variant(match m {
-                            "id" => SelectionVariant::Id,
                             "full" => SelectionVariant::Full,
-                            _ => SelectionVariant::ExchangeWithoutTail,
+                            "notail" => SelectionVariant::ExchangeWithoutTail,
+                            _ => SelectionVariant::Id,
+                        });
+                        set_oversampling(match m {
+                            "id-A" => OversamplingCriterion::A,
+                            "id-E" => OversamplingCriterion::E,
+                            _ => OversamplingCriterion::D,
                         });
                         let p = basis.matsubara_sampling_points(
                             positive_only,
@@ -250,6 +260,7 @@ fn run_basis<K, S>(
                             MatsubaraPointMethod::PairSelection,
                         );
                         set_variant(SelectionVariant::Full);
+                        set_oversampling(OversamplingCriterion::D);
                         p
                     }
                 }

@@ -21,6 +21,8 @@ ratio: geometric mean [10%, 90%] over conditions
   ('full', 'true'): 1.36 (max 860.8)
   ('id', 'false'): 1.35 (max 978.1)
   ('id', 'true'): 1.57 (max 671.1)
+  ('id-A', 'true'): 0.80 (max 190.6)
+  ('id-E', 'true'): 0.80 (max 204.3)
   ('notail', 'false'): 1.30 (max 1709.0)
   ('notail', 'true'): 1.42 (max 573.6)
   ('sign', 'false'): 1.04 (max 980.5)
