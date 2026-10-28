@@ -292,12 +292,12 @@ where
     T: Copy + Debug + Send + Sync + CustomNumeric,
 {
     fn segments_x(&self) -> Vec<T> {
-        crate::sve::mirror_segments_to_full_domain(&self.inner.segments_x())
+        self.inner.segments_x()
     }
 
     fn segments_y(&self) -> Vec<T> {
         // [0, s1, ..., 1] -> [ymin, ..., ymin s1, 0, ymax s1, ..., ymax]
-        let half = self.inner.segments_y();
+        let half = self.inner.half_segments_y();
         let (ymin, ymax) = (
             T::from_f64_unchecked(self.ymin),
             T::from_f64_unchecked(self.ymax),
@@ -340,11 +340,13 @@ where
     }
 }
 
-impl<T> SVEHints<T> for LogisticSVEHints<T>
+impl<T> LogisticSVEHints<T>
 where
     T: Copy + Debug + Send + Sync + CustomNumeric,
 {
-    fn segments_x(&self) -> Vec<T> {
+    /// The boundaries on [0, 1] of x, the half domain the SVE
+    /// of the centrosymmetric kernel discretizes
+    pub(crate) fn half_segments_x(&self) -> Vec<T> {
         // Direct implementation that generates only non-negative sample points
         // This is equivalent to the C++ implementation but without the full symmetric array creation
         let nzeros = std::cmp::max((15.0 * self.kernel.lambda().log10()).round() as usize, 1);
@@ -391,7 +393,9 @@ where
         segments
     }
 
-    fn segments_y(&self) -> Vec<T> {
+    /// The boundaries on [0, 1] of y, the half domain the SVE
+    /// of the centrosymmetric kernel discretizes
+    pub(crate) fn half_segments_y(&self) -> Vec<T> {
         // Direct implementation that generates only non-negative sample points
         // This is equivalent to the C++ implementation but without the full symmetric array creation
         let nzeros = std::cmp::max((20.0 * self.kernel.lambda().log10()).round() as usize, 2);
@@ -455,6 +459,19 @@ where
         segments.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         segments
+    }
+}
+
+impl<T> SVEHints<T> for LogisticSVEHints<T>
+where
+    T: Copy + Debug + Send + Sync + CustomNumeric,
+{
+    fn segments_x(&self) -> Vec<T> {
+        crate::sve::mirror_segments_to_full_domain(&self.half_segments_x())
+    }
+
+    fn segments_y(&self) -> Vec<T> {
+        crate::sve::mirror_segments_to_full_domain(&self.half_segments_y())
     }
 
     fn nsvals(&self) -> usize {
@@ -689,11 +706,13 @@ where
     }
 }
 
-impl<T> SVEHints<T> for RegularizedBoseSVEHints<T>
+impl<T> RegularizedBoseSVEHints<T>
 where
     T: Copy + Debug + Send + Sync + CustomNumeric + 'static,
 {
-    fn segments_x(&self) -> Vec<T> {
+    /// The boundaries on [0, 1] of x, the half domain the SVE
+    /// of the centrosymmetric kernel discretizes
+    pub(crate) fn half_segments_x(&self) -> Vec<T> {
         // Returns segments for x >= 0 domain only
         // C++/Julia: nzeros = max(round(15 * log10(lambda)), 15)
         let nzeros = ((15.0 * self.kernel.lambda.log10()).round() as usize).max(15);
@@ -736,7 +755,9 @@ where
         segments
     }
 
-    fn segments_y(&self) -> Vec<T> {
+    /// The boundaries on [0, 1] of y, the half domain the SVE
+    /// of the centrosymmetric kernel discretizes
+    pub(crate) fn half_segments_y(&self) -> Vec<T> {
         // Returns segments for y >= 0 domain only
         // Python: nzeros = max(round(20 * log10(lambda)), 20)
         let nzeros = ((20.0 * self.kernel.lambda.log10()).round() as usize).max(20);
@@ -776,6 +797,19 @@ where
         segments.push(T::from_f64_unchecked(1.0));
 
         segments
+    }
+}
+
+impl<T> SVEHints<T> for RegularizedBoseSVEHints<T>
+where
+    T: Copy + Debug + Send + Sync + CustomNumeric + 'static,
+{
+    fn segments_x(&self) -> Vec<T> {
+        crate::sve::mirror_segments_to_full_domain(&self.half_segments_x())
+    }
+
+    fn segments_y(&self) -> Vec<T> {
+        crate::sve::mirror_segments_to_full_domain(&self.half_segments_y())
     }
 
     fn nsvals(&self) -> usize {
