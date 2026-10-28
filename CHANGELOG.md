@@ -107,6 +107,13 @@ User-visible changes of sparse-ir-rs (the Rust crates and the C API
   is deprecated: the SVE uses the symmetry of the kernels that implement
   `ReducedKernel`. `spir_kernel_get_sve_hints_segments_x` and `_y` of the
   C API are unchanged.
+- One Gauss-Legendre rule, `legendre::<T>(n)`: in `f64` by Newton's
+  method, in `Df64` from xprec (as the SVE used through
+  `legendre_generic`). `legendre_custom`, `legendre_twofloat`,
+  `legendre_generic`, `Rule::from_vectors` and the `_custom` and
+  `_twofloat` methods of `Rule`, duplicates of the generic ones, are
+  deprecated. `Rule::convert` keeps the precision of the target type (it
+  went through `f64`).
 - The functions of the SVE, the quadrature and the polynomials return
   `sparse_ir_sve::Error`, which converts into `sparse_ir::Error` (`?`,
   `From`).
@@ -152,6 +159,10 @@ User-visible changes of sparse-ir-rs (the Rust crates and the C API
   that no SVE accepts (NaN, zero, negative, infinite, or 1 or more) instead
   of a precision; it used to return `SPIR_TWORK_FLOAT64X2` for NaN, 0 and
   negative values. Valid epsilons give the same precision as before (#345).
+- The double-double Gauss-Legendre rules of
+  `spir_gauss_legendre_rule_piecewise_ddouble` (and the functions built on
+  them) come from xprec's rule, as those of the SVE did: points and weights
+  change by about 1e-32.
 
 ### Fixed
 

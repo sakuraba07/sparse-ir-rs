@@ -15,16 +15,6 @@ fn test_rule_constructor() {
 }
 
 #[test]
-fn test_rule_from_vectors() {
-    let x = vec![0.0, 1.0];
-    let w = vec![0.5, 0.5];
-
-    let rule = Rule::from_vectors(x.clone(), w.clone(), -1.0, 1.0).unwrap();
-    assert_eq!(rule.x, x);
-    assert_eq!(rule.w, w);
-}
-
-#[test]
 fn test_rule_empty() {
     let rule = Rule::<f64>::empty();
     assert_eq!(rule.x.len(), 0);
@@ -197,70 +187,6 @@ fn test_legendre_function() {
     assert_eq!(rule.w.len(), 0);
 }
 
-// CustomNumeric tests
-#[test]
-fn test_legendre_custom_f64() {
-    // Test legendre_custom function with f64
-    for n in 1..=5 {
-        let rule = legendre_custom::<f64>(n);
-        assert_eq!(rule.x.len(), n);
-        assert_eq!(rule.w.len(), n);
-        assert!(rule.validate_custom());
-    }
-
-    // Test n=0 case
-    let rule = legendre_custom::<f64>(0);
-    assert_eq!(rule.x.len(), 0);
-    assert_eq!(rule.w.len(), 0);
-}
-
-#[test]
-fn test_legendre_twofloat() {
-    // Test legendre_twofloat function with Df64
-    for n in 1..=3 {
-        // Smaller range for Df64 due to complexity
-        let rule = legendre_twofloat(n);
-        assert_eq!(rule.x.len(), n);
-        assert_eq!(rule.w.len(), n);
-        assert!(rule.validate_twofloat());
-    }
-
-    // Test n=0 case
-    let rule = legendre_twofloat(0);
-    assert_eq!(rule.x.len(), 0);
-    assert_eq!(rule.w.len(), 0);
-}
-
-#[test]
-fn test_rule_custom_methods() {
-    // Test Rule custom methods with f64
-    let x = vec![0.0, 1.0];
-    let w = vec![0.5, 0.5];
-
-    let rule = Rule::new_custom(x.clone(), w.clone(), -1.0, 1.0).unwrap();
-    assert!(rule.validate_custom());
-
-    let reseated = rule.reseat_custom(-2.0, 0.0);
-    assert!(reseated.validate_custom());
-    assert_eq!(reseated.a, -2.0);
-    assert_eq!(reseated.b, 0.0);
-
-    let scaled = rule.scale_custom(2.0);
-    assert!(scaled.validate_custom());
-    assert_eq!(scaled.w[0], 1.0);
-    assert_eq!(scaled.w[1], 1.0);
-}
-
-#[test]
-fn test_rule_twofloat_methods() {
-    // Test with Df64
-    let x_tf = vec![Df64::from(0.0), Df64::from(1.0)];
-    let w_tf = vec![Df64::from(0.5), Df64::from(0.5)];
-
-    let rule_tf = Rule::new_twofloat(x_tf, w_tf, Df64::from(-1.0), Df64::from(1.0)).unwrap();
-    assert!(rule_tf.validate_twofloat());
-}
-
 // ===== Df64 Gauss Integration Precision Tests =====
 
 #[test]
@@ -271,7 +197,7 @@ fn test_twofloat_gauss_rule_validation() {
     let test_points = vec![5, 10, 20, 50];
 
     for n in test_points {
-        let rule = legendre_twofloat(n);
+        let rule = legendre::<Df64>(n);
 
         println!("Testing rule with {} points:", n);
         println!("  Interval: [{}, {}]", rule.a.to_f64(), rule.b.to_f64());
@@ -279,7 +205,7 @@ fn test_twofloat_gauss_rule_validation() {
         println!("  Weights: {}", rule.w.len());
 
         // Validate the rule
-        let is_valid = rule.validate_twofloat();
+        let is_valid = rule.validate();
         println!(
             "  Validation: {}",
             if is_valid { "✅ PASS" } else { "❌ FAIL" }
@@ -335,7 +261,7 @@ fn test_twofloat_integration_convergence_analysis_circular() {
     let test_points = vec![100, 150, 200];
 
     for n in test_points {
-        let rule = legendre_twofloat(n);
+        let rule = legendre::<Df64>(n);
         let mut integral = Df64::from_f64_unchecked(0.0);
 
         for i in 0..rule.x.len() {
@@ -357,7 +283,7 @@ fn test_twofloat_integration_convergence_analysis_circular() {
 #[test]
 fn test_twofloat_integration_convergence_analysis_polynomial() {
     let poly_degn = |n: usize| -> bool {
-        let rule = legendre_twofloat(n);
+        let rule = legendre::<Df64>(n);
         assert_eq!(rule.x.len(), n);
         assert_eq!(rule.w.len(), n);
 
@@ -492,7 +418,7 @@ fn legendre_polynomial_twofloat(n: usize, x: Df64) -> Df64 {
 #[test]
 fn test_high_precision_legendre_f64() {
     let n = 16;
-    let rule = legendre_custom::<f64>(n);
+    let rule = legendre::<f64>(n);
 
     // Expected values computed with high precision (similar to C++ DDouble test)
     let x_expected = [
@@ -585,10 +511,10 @@ fn test_high_precision_legendre_f64() {
 #[test]
 fn test_high_precision_legendre_twofloat() {
     let n = 6; // Smaller n for Df64 due to complexity
-    let rule = legendre_twofloat(n);
+    let rule = legendre::<Df64>(n);
 
     // Check that the rule is valid
-    assert!(rule.validate_twofloat());
+    assert!(rule.validate());
 
     // Check that all points are within [-1, 1]
     for &xi in rule.x.iter() {
@@ -632,7 +558,7 @@ fn test_high_precision_legendre_twofloat() {
 #[test]
 fn test_legendre_polynomial_at_nodes() {
     let n = 8;
-    let rule = legendre_custom::<f64>(n);
+    let rule = legendre::<f64>(n);
 
     // Test that P_0(x) = 1 at all nodes
     for i in 0..n {
@@ -669,7 +595,7 @@ fn test_legendre_polynomial_at_nodes() {
 #[test]
 fn test_legendre_polynomial_twofloat_at_nodes() {
     let n = 4; // Smaller n for Df64
-    let rule = legendre_twofloat(n);
+    let rule = legendre::<Df64>(n);
 
     // Test that P_0(x) = 1 at all nodes
     for i in 0..n {
@@ -709,10 +635,10 @@ fn test_legendre_polynomial_twofloat_at_nodes() {
 #[test]
 fn test_large_legendre_rule_high_precision() {
     let n = 200;
-    let rule = legendre_custom::<f64>(n);
+    let rule = legendre::<f64>(n);
 
     // Check basic properties
-    assert!(rule.validate_custom());
+    assert!(rule.validate());
     assert_eq!(rule.a, -1.0);
     assert_eq!(rule.b, 1.0);
     assert_eq!(rule.x.len(), n);
@@ -759,9 +685,9 @@ fn test_large_legendre_rule_high_precision() {
 #[test]
 fn test_piecewise_high_precision() {
     let edges = vec![-4.0, -1.0, 1.0, 3.0];
-    let rule = legendre_custom::<f64>(20).piecewise(&edges).unwrap();
+    let rule = legendre::<f64>(20).piecewise(&edges).unwrap();
 
-    assert!(rule.validate_custom());
+    assert!(rule.validate());
     assert_eq!(rule.a, -4.0);
     assert_eq!(rule.b, 3.0);
 
@@ -802,17 +728,9 @@ fn test_rule_constructors_check_their_input() {
         Rule::new(vec![0.0, 1.0], vec![1.0], -1.0, 1.0).unwrap_err(),
         lengths
     );
-    assert_eq!(
-        Rule::from_vectors(vec![0.0, 1.0], vec![1.0], -1.0, 1.0).unwrap_err(),
-        lengths
-    );
-    assert_eq!(
-        Rule::new_custom(vec![0.0, 1.0], vec![1.0], -1.0, 1.0).unwrap_err(),
-        lengths
-    );
     let dd = |x: f64| Df64::from(x);
     assert_eq!(
-        Rule::new_twofloat(vec![dd(0.0), dd(1.0)], vec![dd(1.0)], dd(-1.0), dd(1.0)).unwrap_err(),
+        Rule::new(vec![dd(0.0), dd(1.0)], vec![dd(1.0)], dd(-1.0), dd(1.0)).unwrap_err(),
         lengths
     );
 
@@ -874,4 +792,60 @@ fn test_piecewise_rejects_an_overflowing_midpoint() {
             "{edges:?}: {err:?}"
         );
     }
+}
+
+/// The deprecated names are the generic rule and methods
+#[test]
+#[allow(deprecated)]
+fn test_deprecated_names_are_the_generic_ones() {
+    let same = |a: &Rule<f64>, b: &Rule<f64>| {
+        assert_eq!((&a.x, &a.w, a.a, a.b), (&b.x, &b.w, b.a, b.b));
+    };
+    let rule = legendre::<f64>(5);
+    same(&legendre_custom::<f64>(5), &rule);
+    same(&legendre_generic::<f64>(5), &rule);
+    same(
+        &Rule::from_vectors(rule.x.clone(), rule.w.clone(), -1.0, 1.0).unwrap(),
+        &rule,
+    );
+    same(
+        &Rule::new_custom(rule.x.clone(), rule.w.clone(), -1.0, 1.0).unwrap(),
+        &rule,
+    );
+    same(
+        &Rule::from_vectors_custom(rule.x.clone(), rule.w.clone(), -1.0, 1.0).unwrap(),
+        &rule,
+    );
+    same(&rule.reseat_custom(0.0, 2.0), &rule.reseat(0.0, 2.0));
+    same(&rule.scale_custom(2.0), &rule.scale(2.0));
+    assert!(rule.validate_custom());
+
+    let dd = legendre::<Df64>(5);
+    let same_dd = |a: &Rule<Df64>, b: &Rule<Df64>| {
+        assert_eq!((&a.x, &a.w, a.a, a.b), (&b.x, &b.w, b.a, b.b));
+    };
+    same_dd(&legendre_twofloat(5), &dd);
+    same_dd(&legendre_generic::<Df64>(5), &dd);
+    let (x, w) = (dd.x.clone(), dd.w.clone());
+    same_dd(
+        &Rule::new_twofloat(x.clone(), w.clone(), dd.a, dd.b).unwrap(),
+        &dd,
+    );
+    same_dd(&Rule::from_vectors_twofloat(x, w, dd.a, dd.b).unwrap(), &dd);
+    let (a, b) = (Df64::from(0.0), Df64::from(2.0));
+    same_dd(&dd.reseat_twofloat(a, b), &dd.reseat(a, b));
+    same_dd(&dd.scale_twofloat(b), &dd.scale(b));
+    assert!(dd.validate_twofloat());
+}
+
+/// `convert` keeps the precision of the target type: a `Df64` rule
+/// converted to `Df64` is unchanged, and to `f64` it is rounded
+#[test]
+fn test_convert_keeps_the_precision() {
+    let dd = legendre::<Df64>(7);
+    let same = dd.convert::<Df64>();
+    assert_eq!((&same.x, &same.w), (&dd.x, &dd.w));
+    let single = dd.convert::<f64>();
+    let rounded: Vec<f64> = dd.x.iter().map(|&x| x.to_f64()).collect();
+    assert_eq!(single.x, rounded);
 }

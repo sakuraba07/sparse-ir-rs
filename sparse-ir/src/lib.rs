@@ -33,6 +33,7 @@ pub use sparse_ir_dlr::{
 
 pub use sparse_ir_minipole::{esprit, minipole};
 
+#[allow(deprecated)]
 pub use sparse_ir_basis::{
     AbstractKernel, BasisKernel, BosonicBasis, BosonicPiecewiseLegendreFT,
     BosonicPiecewiseLegendreFTVector, CentrosymmKernel, CentrosymmSVE, CustomNumeric, Df64,
