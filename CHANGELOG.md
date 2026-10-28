@@ -114,6 +114,11 @@ User-visible changes of sparse-ir-rs (the Rust crates and the C API
   `_twofloat` methods of `Rule`, duplicates of the generic ones, are
   deprecated. `Rule::convert` keeps the precision of the target type (it
   went through `f64`).
+- The accessors of `PiecewiseLegendrePoly` and
+  `PiecewiseLegendrePolyVector` drop their `get_` prefix (`knots()`,
+  `delta_x()`, `data()`, `norms()`, `polyorder()`, `domain()`, `l()`,
+  `polys()`, ...), and `PiecewiseLegendrePolyVector::size` is `len` (with
+  `is_empty`). The former names are deprecated.
 - The functions of the SVE, the quadrature and the polynomials return
   `sparse_ir_sve::Error`, which converts into `sparse_ir::Error` (`?`,
   `From`).
