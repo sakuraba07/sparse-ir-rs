@@ -74,6 +74,9 @@ User-visible changes of sparse-ir-rs (the Rust crates and the C API
   full-domain expansion of a centrosymmetric kernel). `compute_sve` is
   unchanged; `compute_sve_general` is deprecated in favor of
   `SVEOptions::full_domain`.
+- `sparse_ir_sve::Error::kind` and `ErrorKind`: the category of an error
+  of the SVE (invalid argument, not supported, internal), stable when
+  variants are added.
 - `SVEResult::truncate`: the expansion truncated at a relative threshold
   (its accuracy) and a maximum size, as an `SVEResult`. `SVEResult::part`,
   which returned the parts as a tuple, is deprecated.
