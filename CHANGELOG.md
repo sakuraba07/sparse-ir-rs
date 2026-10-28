@@ -69,9 +69,14 @@ User-visible changes of sparse-ir-rs (the Rust crates and the C API
   still is, and for `LogisticKernelWindowed`.
 - `KernelProperties::xmin()` and `ymin()`, defaulting to the symmetric
   domain.
-- `compute_sve_for_basis` and `BASIS_CUTOFF_FACTOR`: an SVE that resolves
-  only the singular values a basis for ε uses, down to
-  `max(2·ε_work, 1e-10·ε)`; in double-double 1.5–2.3× faster than
+- `compute_sve_with` and `SVEOptions`: the SVE with options set by name
+  (accuracy, cutoff, maximum number of singular values, working precision,
+  full-domain expansion of a centrosymmetric kernel). `compute_sve` is
+  unchanged; `compute_sve_general` is deprecated in favor of
+  `SVEOptions::full_domain`.
+- `SVEOptions::cutoff_from_epsilon` and `ACCURACY_CUTOFF_FACTOR`: an SVE
+  that resolves only the singular values an expansion accurate to ε uses,
+  down to `max(2·ε_work, 1e-10·ε)`; in double-double 1.5–2.3× faster than
   `compute_sve`, with about 20% fewer singular values. Opt-in: the default
   SVE is unchanged.
 
@@ -112,10 +117,11 @@ User-visible changes of sparse-ir-rs (the Rust crates and the C API
   e.g. for Λ = 3·10⁵ and 10⁶), so the length of the `SVEResult` can
   differ, but not the bases. The f64 SVE is unchanged (bitwise that of
   the previous release).
-- `compute_sve_general` computes the double-double SVE of a kernel that is
-  not centrosymmetric by ACA as well (for a centrosymmetric kernel it
-  keeps the dense column-pivoted QR, whose single block holds nearly
-  degenerate pairs of singular values).
+- The SVE over the full domain (`compute_sve_with` with
+  `SVEOptions::full_domain`, formerly `compute_sve_general`) computes the
+  double-double SVE of a kernel that is not centrosymmetric by ACA as well
+  (for a centrosymmetric kernel it keeps the dense column-pivoted QR, whose
+  single block holds nearly degenerate pairs of singular values).
 - `FiniteTempBasis::from_sve_result` accepts an SVE without parity for a
   `LogisticKernel` (it was `NotSupported`).
 - The default Matsubara points are computed once per basis.
