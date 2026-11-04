@@ -34,6 +34,12 @@ use nalgebra::dimension::{Dim, DimMin, DimMinimum};
 use nalgebra::geometry::Reflection;
 use nalgebra::linalg::{PermutationSequence, householder};
 
+/// EXPERIMENT ONLY: SPIR_CPQR_PIVOT=norm selects the column of largest norm
+fn exp_pivot_by_norm() -> bool {
+    static V: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *V.get_or_init(|| std::env::var("SPIR_CPQR_PIVOT").as_deref() == Ok("norm"))
+}
+
 /// The QR decomposition (with column pivoting) of a general matrix.
 #[derive(Clone, Debug)]
 pub struct ColPivQR<T: ComplexField, R: DimMin<C>, C: Dim>
@@ -88,9 +94,23 @@ where
         let mut diag = Matrix::zeros_generic(min_nrows_ncols, Const::<1>);
         let mut first_diag_abs = None;
 
+        let mut stop = min_nrows_ncols.value();
         for i in 0..min_nrows_ncols.value() {
-            let piv = matrix.view_range(i.., i..).icamax_full();
-            let col_piv = piv.1 + i;
+            let col_piv = if exp_pivot_by_norm() {
+                let sub = matrix.view_range(i.., i..);
+                let mut best = 0;
+                let mut best_n = sub.column(0).norm_squared();
+                for j in 1..sub.ncols() {
+                    let nj = sub.column(j).norm_squared();
+                    if nj > best_n {
+                        best_n = nj;
+                        best = j;
+                    }
+                }
+                best + i
+            } else {
+                matrix.view_range(i.., i..).icamax_full().1 + i
+            };
             matrix.swap_columns(i, col_piv);
             p.append_permutation(i, col_piv);
 
@@ -107,12 +127,16 @@ where
                 if let Some(ref first_abs) = first_diag_abs {
                     if diag_abs < rtol_val.clone() * first_abs.clone() {
                         // Early termination: the remaining diagonal elements stay zero
+                        stop = i;
                         break;
                     }
                 }
             }
 
             diag[i] = diag_value;
+        }
+        if std::env::var_os("SPIR_CPQR_LOG").is_some() {
+            eprintln!("CPQR m={} n={} stop={}", nrows.value(), ncols.value(), stop);
         }
 
         ColPivQR {
