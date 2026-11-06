@@ -4,11 +4,28 @@
 
 use sparse_ir::kernel::SVEHints;
 
+use crate::ffi::{Out, new_handle, obj, status_call, write_slice};
 use crate::status::status_from;
-use crate::types::spir_kernel;
-use crate::{SPIR_COMPUTATION_SUCCESS, SPIR_INTERNAL_ERROR, SPIR_INVALID_ARGUMENT, StatusCode};
+use crate::types::{KernelType, spir_kernel};
+use crate::{SPIR_INVALID_ARGUMENT, StatusCode};
 
-// Generate common opaque type functions: release, clone, is_assigned, get_raw_ptr
+/// The SVE hints of `kernel` for the accuracy `epsilon`
+fn sve_hints(kernel: &spir_kernel, epsilon: f64) -> Box<dyn SVEHints<f64>> {
+    use sparse_ir::kernel::SVEKernel;
+    match kernel.inner() {
+        KernelType::Logistic(k) => Box::new(k.sve_hints::<f64>(epsilon)),
+        KernelType::RegularizedBose(k) => Box::new(k.sve_hints::<f64>(epsilon)),
+    }
+}
+
+/// `SPIR_INVALID_ARGUMENT` unless `epsilon` is positive and finite
+fn check_epsilon(epsilon: f64) -> Result<(), StatusCode> {
+    if epsilon > 0.0 && epsilon.is_finite() {
+        Ok(())
+    } else {
+        Err(SPIR_INVALID_ARGUMENT)
+    }
+}
 
 /// Create a new Logistic kernel
 ///
@@ -36,35 +53,11 @@ pub extern "C" fn spir_logistic_kernel_new(
     lambda: f64,
     status: *mut StatusCode,
 ) -> *mut spir_kernel {
-    // Input validation
-    if status.is_null() {
-        return std::ptr::null_mut();
-    }
-
-    // Catch panics to prevent unwinding across FFI boundary
-    let result = crate::ffi_call(|| {
-        spir_kernel::new_logistic(lambda).map(|kernel| Box::into_raw(Box::new(kernel)))
-    });
-
-    match result {
-        Ok(Ok(ptr)) => {
-            unsafe {
-                *status = SPIR_COMPUTATION_SUCCESS;
-            }
-            ptr
-        }
-        Ok(Err(err)) => {
-            unsafe {
-                *status = status_from(&err);
-            }
-            std::ptr::null_mut()
-        }
-        Err(_) => {
-            unsafe {
-                *status = SPIR_INTERNAL_ERROR;
-            }
-            std::ptr::null_mut()
-        }
+    // SAFETY: `status` is null or writable (the C contract above).
+    unsafe {
+        new_handle(status, || {
+            spir_kernel::new_logistic(lambda).map_err(|e| status_from(&e))
+        })
     }
 }
 
@@ -86,33 +79,11 @@ pub extern "C" fn spir_reg_bose_kernel_new(
     lambda: f64,
     status: *mut StatusCode,
 ) -> *mut spir_kernel {
-    if status.is_null() {
-        return std::ptr::null_mut();
-    }
-
-    let result = crate::ffi_call(|| {
-        spir_kernel::new_regularized_bose(lambda).map(|kernel| Box::into_raw(Box::new(kernel)))
-    });
-
-    match result {
-        Ok(Ok(ptr)) => {
-            unsafe {
-                *status = SPIR_COMPUTATION_SUCCESS;
-            }
-            ptr
-        }
-        Ok(Err(err)) => {
-            unsafe {
-                *status = status_from(&err);
-            }
-            std::ptr::null_mut()
-        }
-        Err(_) => {
-            unsafe {
-                *status = SPIR_INTERNAL_ERROR;
-            }
-            std::ptr::null_mut()
-        }
+    // SAFETY: `status` is null or writable (the C contract).
+    unsafe {
+        new_handle(status, || {
+            spir_kernel::new_regularized_bose(lambda).map_err(|e| status_from(&e))
+        })
     }
 }
 
@@ -131,17 +102,13 @@ pub extern "C" fn spir_kernel_get_lambda(
     kernel: *const spir_kernel,
     lambda_out: *mut f64,
 ) -> StatusCode {
-    if kernel.is_null() || lambda_out.is_null() {
-        return SPIR_INVALID_ARGUMENT;
-    }
-
-    let result = crate::ffi_call(|| unsafe {
-        let k = &*kernel;
-        *lambda_out = k.lambda();
-        SPIR_COMPUTATION_SUCCESS
-    });
-
-    result.unwrap_or(SPIR_INTERNAL_ERROR)
+    status_call(|| {
+        // SAFETY: each pointer is null or, by the C contract, a live kernel
+        // handle and a writable double.
+        let (kernel, lambda_out) = unsafe { (obj(kernel)?, Out::new(lambda_out)?) };
+        lambda_out.write(kernel.lambda());
+        Ok(())
+    })
 }
 
 /// Compute kernel value K(x, y)
@@ -163,17 +130,12 @@ pub extern "C" fn spir_kernel_compute(
     y: f64,
     out: *mut f64,
 ) -> StatusCode {
-    if kernel.is_null() || out.is_null() {
-        return SPIR_INVALID_ARGUMENT;
-    }
-
-    let result = crate::ffi_call(|| unsafe {
-        let k = &*kernel;
-        *out = k.compute(x, y);
-        SPIR_COMPUTATION_SUCCESS
-    });
-
-    result.unwrap_or(SPIR_INTERNAL_ERROR)
+    status_call(|| {
+        // SAFETY: as in `spir_kernel_get_lambda`
+        let (kernel, out) = unsafe { (obj(kernel)?, Out::new(out)?) };
+        out.write(kernel.compute(x, y));
+        Ok(())
+    })
 }
 
 /// Manual release function (replaces macro-generated one)
@@ -184,28 +146,21 @@ pub extern "C" fn spir_kernel_compute(
 #[unsafe(no_mangle)]
 pub extern "C" fn spir_kernel_release(kernel: *mut spir_kernel) {
     if !kernel.is_null() {
-        unsafe {
-            // Drop the spir_kernel structure itself.
-            // The Drop implementation will automatically free the inner KernelType data.
-            let _ = Box::from_raw(kernel);
-        }
+        // SAFETY: a non-null `kernel` is a handle that this library boxed and
+        // the caller releases once. Dropping it frees the inner KernelType.
+        drop(unsafe { Box::from_raw(kernel) });
     }
 }
 
 /// Manual clone function (replaces macro-generated one)
 #[unsafe(no_mangle)]
 pub extern "C" fn spir_kernel_clone(src: *const spir_kernel) -> *mut spir_kernel {
-    if src.is_null() {
-        return std::ptr::null_mut();
-    }
-
-    let result = crate::ffi_call(std::panic::AssertUnwindSafe(|| unsafe {
-        let src_ref = &*src;
-        let cloned = (*src_ref).clone();
-        Box::into_raw(Box::new(cloned))
-    }));
-
-    result.unwrap_or(std::ptr::null_mut())
+    let result = crate::ffi_call(|| {
+        // SAFETY: `src` is null or a live kernel handle (the C contract).
+        let src = unsafe { obj(src) }.ok()?;
+        Some(Box::into_raw(Box::new(src.clone())))
+    });
+    result.ok().flatten().unwrap_or(std::ptr::null_mut())
 }
 
 /// Check if the kernel pointer is non-null.
@@ -242,21 +197,67 @@ pub extern "C" fn spir_kernel_get_domain(
     ymin: *mut f64,
     ymax: *mut f64,
 ) -> StatusCode {
-    if k.is_null() || xmin.is_null() || xmax.is_null() || ymin.is_null() || ymax.is_null() {
-        return SPIR_INVALID_ARGUMENT;
-    }
-
-    let result = crate::ffi_call(|| unsafe {
-        let kernel = &*k;
+    status_call(|| {
+        // SAFETY: each pointer is null or, by the C contract, a live kernel
+        // handle and four writable doubles.
+        let (kernel, xmin, xmax, ymin, ymax) = unsafe {
+            (
+                obj(k)?,
+                Out::new(xmin)?,
+                Out::new(xmax)?,
+                Out::new(ymin)?,
+                Out::new(ymax)?,
+            )
+        };
         let (xmin_val, xmax_val, ymin_val, ymax_val) = kernel.domain();
-        *xmin = xmin_val;
-        *xmax = xmax_val;
-        *ymin = ymin_val;
-        *ymax = ymax_val;
-        SPIR_COMPUTATION_SUCCESS
-    });
+        xmin.write(xmin_val);
+        xmax.write(xmax_val);
+        ymin.write(ymin_val);
+        ymax.write(ymax_val);
+        Ok(())
+    })
+}
 
-    result.unwrap_or(SPIR_INTERNAL_ERROR)
+/// Body of `spir_kernel_get_sve_hints_segments_{x,y}`: the half [0, 1] of the
+/// segments of these centrosymmetric kernels, in x or (`y`) in y
+fn sve_hint_segments(
+    k: *const spir_kernel,
+    epsilon: f64,
+    segments: *mut f64,
+    n_segments: *mut libc::c_int,
+    y: bool,
+) -> StatusCode {
+    status_call(|| {
+        // SAFETY: `k` is null or a live kernel handle, and `n_segments` null or
+        // a readable and writable int (the C contract).
+        let (kernel, n_out) = unsafe { (obj(k)?, Out::new(n_segments)?) };
+        check_epsilon(epsilon)?;
+
+        let hints = sve_hints(kernel, epsilon);
+        let full = if y {
+            hints.segments_y()
+        } else {
+            hints.segments_x()
+        };
+        let segs = sparse_ir::sve::half_domain_segments(&full);
+        let n = (segs.len() - 1) as libc::c_int;
+
+        // First call (segments NULL): only the number of intervals. Second
+        // call: `*n_segments` is the caller's interval count, so the buffer
+        // holds `*n_segments + 1` boundary points; it must hold all of them.
+        if !segments.is_null() {
+            // SAFETY: `n_segments` is non-null (checked by `Out::new`) and holds
+            // the caller's count on the second call.
+            if unsafe { n_segments.read() } < n {
+                return Err(SPIR_INVALID_ARGUMENT);
+            }
+            // SAFETY: the caller allocated `*n_segments + 1 >= segs.len()`
+            // doubles at `segments` (checked just above).
+            unsafe { write_slice(segments, &segs) };
+        }
+        n_out.write(n);
+        Ok(())
+    })
 }
 
 /// Get x-segments for SVE discretization hints from a kernel
@@ -284,55 +285,7 @@ pub extern "C" fn spir_kernel_get_sve_hints_segments_x(
     segments: *mut f64,
     n_segments: *mut libc::c_int,
 ) -> StatusCode {
-    if k.is_null() || n_segments.is_null() {
-        return SPIR_INVALID_ARGUMENT;
-    }
-
-    if epsilon <= 0.0 || !epsilon.is_finite() {
-        return SPIR_INVALID_ARGUMENT;
-    }
-
-    let result = crate::ffi_call(|| unsafe {
-        let kernel = &*k;
-
-        // The half [0, 1] of the hints of these centrosymmetric kernels
-        let segs = match kernel.inner() {
-            crate::types::KernelType::Logistic(k) => {
-                use sparse_ir::kernel::SVEKernel;
-                let hints = k.sve_hints::<f64>(epsilon);
-                sparse_ir::sve::half_domain_segments(&hints.segments_x())
-            }
-            crate::types::KernelType::RegularizedBose(k) => {
-                use sparse_ir::kernel::SVEKernel;
-                let hints = k.sve_hints::<f64>(epsilon);
-                sparse_ir::sve::half_domain_segments(&hints.segments_x())
-            }
-        };
-
-        if segments.is_null() {
-            // First call: return the number of segment intervals.
-            // The caller must later allocate n_segments + 1 elements for boundary points.
-            *n_segments = (segs.len() - 1) as libc::c_int;
-            return SPIR_COMPUTATION_SUCCESS;
-        }
-
-        // Second call: copy boundary points to output array.
-        // We need segs.len() = n_segments + 1 elements in the buffer.
-        // The caller passes the interval count in *n_segments, so we
-        // verify it is at least segs.len() - 1 (i.e., the buffer holds
-        // *n_segments + 1 >= segs.len() boundary points).
-        if *n_segments < (segs.len() - 1) as libc::c_int {
-            return SPIR_INVALID_ARGUMENT;
-        }
-
-        for (i, &seg) in segs.iter().enumerate() {
-            *segments.add(i) = seg;
-        }
-        *n_segments = (segs.len() - 1) as libc::c_int;
-        SPIR_COMPUTATION_SUCCESS
-    });
-
-    result.unwrap_or(SPIR_INTERNAL_ERROR)
+    sve_hint_segments(k, epsilon, segments, n_segments, false)
 }
 
 /// Get y-segments for SVE discretization hints from a kernel
@@ -360,55 +313,7 @@ pub extern "C" fn spir_kernel_get_sve_hints_segments_y(
     segments: *mut f64,
     n_segments: *mut libc::c_int,
 ) -> StatusCode {
-    if k.is_null() || n_segments.is_null() {
-        return SPIR_INVALID_ARGUMENT;
-    }
-
-    if epsilon <= 0.0 || !epsilon.is_finite() {
-        return SPIR_INVALID_ARGUMENT;
-    }
-
-    let result = crate::ffi_call(|| unsafe {
-        let kernel = &*k;
-
-        // The half [0, 1] of the hints of these centrosymmetric kernels
-        let segs = match kernel.inner() {
-            crate::types::KernelType::Logistic(k) => {
-                use sparse_ir::kernel::SVEKernel;
-                let hints = k.sve_hints::<f64>(epsilon);
-                sparse_ir::sve::half_domain_segments(&hints.segments_y())
-            }
-            crate::types::KernelType::RegularizedBose(k) => {
-                use sparse_ir::kernel::SVEKernel;
-                let hints = k.sve_hints::<f64>(epsilon);
-                sparse_ir::sve::half_domain_segments(&hints.segments_y())
-            }
-        };
-
-        if segments.is_null() {
-            // First call: return the number of segment intervals.
-            // The caller must later allocate n_segments + 1 elements for boundary points.
-            *n_segments = (segs.len() - 1) as libc::c_int;
-            return SPIR_COMPUTATION_SUCCESS;
-        }
-
-        // Second call: copy boundary points to output array.
-        // We need segs.len() = n_segments + 1 elements in the buffer.
-        // The caller passes the interval count in *n_segments, so we
-        // verify it is at least segs.len() - 1 (i.e., the buffer holds
-        // *n_segments + 1 >= segs.len() boundary points).
-        if *n_segments < (segs.len() - 1) as libc::c_int {
-            return SPIR_INVALID_ARGUMENT;
-        }
-
-        for (i, &seg) in segs.iter().enumerate() {
-            *segments.add(i) = seg;
-        }
-        *n_segments = (segs.len() - 1) as libc::c_int;
-        SPIR_COMPUTATION_SUCCESS
-    });
-
-    result.unwrap_or(SPIR_INTERNAL_ERROR)
+    sve_hint_segments(k, epsilon, segments, n_segments, true)
 }
 
 /// Get the number of singular values hint from a kernel
@@ -428,36 +333,14 @@ pub extern "C" fn spir_kernel_get_sve_hints_nsvals(
     epsilon: f64,
     nsvals: *mut libc::c_int,
 ) -> StatusCode {
-    if k.is_null() || nsvals.is_null() {
-        return SPIR_INVALID_ARGUMENT;
-    }
-
-    if epsilon <= 0.0 || !epsilon.is_finite() {
-        return SPIR_INVALID_ARGUMENT;
-    }
-
-    let result = crate::ffi_call(|| unsafe {
-        let kernel = &*k;
-
-        // Get SVE hints based on kernel type
-        let n = match kernel.inner() {
-            crate::types::KernelType::Logistic(k) => {
-                use sparse_ir::kernel::SVEKernel;
-                let hints = k.sve_hints::<f64>(epsilon);
-                hints.nsvals()
-            }
-            crate::types::KernelType::RegularizedBose(k) => {
-                use sparse_ir::kernel::SVEKernel;
-                let hints = k.sve_hints::<f64>(epsilon);
-                hints.nsvals()
-            }
-        };
-
-        *nsvals = n as libc::c_int;
-        SPIR_COMPUTATION_SUCCESS
-    });
-
-    result.unwrap_or(SPIR_INTERNAL_ERROR)
+    status_call(|| {
+        // SAFETY: each pointer is null or, by the C contract, a live kernel
+        // handle and a writable int.
+        let (kernel, nsvals) = unsafe { (obj(k)?, Out::new(nsvals)?) };
+        check_epsilon(epsilon)?;
+        nsvals.write(sve_hints(kernel, epsilon).nsvals() as libc::c_int);
+        Ok(())
+    })
 }
 
 /// Get the number of Gauss points hint from a kernel
@@ -477,41 +360,19 @@ pub extern "C" fn spir_kernel_get_sve_hints_ngauss(
     epsilon: f64,
     ngauss: *mut libc::c_int,
 ) -> StatusCode {
-    if k.is_null() || ngauss.is_null() {
-        return SPIR_INVALID_ARGUMENT;
-    }
-
-    if epsilon <= 0.0 || !epsilon.is_finite() {
-        return SPIR_INVALID_ARGUMENT;
-    }
-
-    let result = crate::ffi_call(|| unsafe {
-        let kernel = &*k;
-
-        // Get SVE hints based on kernel type
-        let n = match kernel.inner() {
-            crate::types::KernelType::Logistic(k) => {
-                use sparse_ir::kernel::SVEKernel;
-                let hints = k.sve_hints::<f64>(epsilon);
-                hints.ngauss()
-            }
-            crate::types::KernelType::RegularizedBose(k) => {
-                use sparse_ir::kernel::SVEKernel;
-                let hints = k.sve_hints::<f64>(epsilon);
-                hints.ngauss()
-            }
-        };
-
-        *ngauss = n as libc::c_int;
-        SPIR_COMPUTATION_SUCCESS
-    });
-
-    result.unwrap_or(SPIR_INTERNAL_ERROR)
+    status_call(|| {
+        // SAFETY: as in `spir_kernel_get_sve_hints_nsvals`
+        let (kernel, ngauss) = unsafe { (obj(k)?, Out::new(ngauss)?) };
+        check_epsilon(epsilon)?;
+        ngauss.write(sve_hints(kernel, epsilon).ngauss() as libc::c_int);
+        Ok(())
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{SPIR_COMPUTATION_SUCCESS, SPIR_INTERNAL_ERROR};
     use std::ptr;
 
     #[test]
@@ -824,6 +685,86 @@ mod tests {
         let mut nsvals = 0;
         let status = spir_kernel_get_sve_hints_nsvals(kernel, -1.0, &mut nsvals);
         assert_ne!(status, SPIR_COMPUTATION_SUCCESS);
+
+        spir_kernel_release(kernel);
+    }
+
+    /// The status of each invalid argument, and that a failing call leaves
+    /// the caller's buffers alone
+    #[test]
+    fn test_kernel_invalid_arguments() {
+        use crate::SPIR_INVALID_ARGUMENT;
+        let epsilon = 1e-8;
+
+        // Constructors: NULL status gives NULL; an invalid lambda is reported
+        assert!(spir_logistic_kernel_new(10.0, ptr::null_mut()).is_null());
+        let mut status = SPIR_INTERNAL_ERROR;
+        assert!(spir_logistic_kernel_new(-1.0, &mut status).is_null());
+        assert_eq!(status, SPIR_INVALID_ARGUMENT);
+
+        let kernel = spir_logistic_kernel_new(10.0, &mut status);
+        assert_eq!(status, SPIR_COMPUTATION_SUCCESS);
+
+        let mut v = 7.0;
+        assert_eq!(
+            spir_kernel_compute(kernel, 0.5, 0.5, ptr::null_mut()),
+            SPIR_INVALID_ARGUMENT
+        );
+        assert_eq!(
+            spir_kernel_compute(ptr::null(), 0.5, 0.5, &mut v),
+            SPIR_INVALID_ARGUMENT
+        );
+        let (mut a, mut b, mut c) = (7.0, 7.0, 7.0);
+        let status = spir_kernel_get_domain(kernel, &mut a, &mut b, &mut c, ptr::null_mut());
+        assert_eq!(status, SPIR_INVALID_ARGUMENT);
+        assert_eq!((v, a, b, c), (7.0, 7.0, 7.0, 7.0));
+        let mut n = 7;
+        assert_eq!(
+            spir_kernel_get_sve_hints_ngauss(kernel, f64::NAN, &mut n),
+            SPIR_INVALID_ARGUMENT
+        );
+        assert_eq!(n, 7);
+
+        assert!(spir_kernel_clone(ptr::null()).is_null());
+        spir_kernel_release(ptr::null_mut());
+
+        type SegmentsFn =
+            extern "C" fn(*const spir_kernel, f64, *mut f64, *mut libc::c_int) -> StatusCode;
+        let x: SegmentsFn = spir_kernel_get_sve_hints_segments_x;
+        let y: SegmentsFn = spir_kernel_get_sve_hints_segments_y;
+        for segments_fn in [x, y] {
+            let mut n = 0;
+            assert_eq!(
+                segments_fn(kernel, epsilon, ptr::null_mut(), &mut n),
+                SPIR_COMPUTATION_SUCCESS
+            );
+            assert!(n > 1);
+            let mut buf = vec![-1.0; n as usize + 1];
+
+            // NULL kernel or count, invalid epsilon
+            let mut m = n;
+            let status = segments_fn(ptr::null(), epsilon, buf.as_mut_ptr(), &mut m);
+            assert_eq!(status, SPIR_INVALID_ARGUMENT);
+            let status = segments_fn(kernel, epsilon, buf.as_mut_ptr(), ptr::null_mut());
+            assert_eq!(status, SPIR_INVALID_ARGUMENT);
+            let status = segments_fn(kernel, 0.0, buf.as_mut_ptr(), &mut m);
+            assert_eq!(status, SPIR_INVALID_ARGUMENT);
+
+            // A buffer one point too short is rejected before any write
+            let mut short = n - 1;
+            let status = segments_fn(kernel, epsilon, buf.as_mut_ptr(), &mut short);
+            assert_eq!(status, SPIR_INVALID_ARGUMENT);
+            assert_eq!(short, n - 1);
+            assert!(buf.iter().all(|&s| s == -1.0));
+
+            // The exact size is filled, from 0 to 1 (the half domain)
+            let mut m = n;
+            let status = segments_fn(kernel, epsilon, buf.as_mut_ptr(), &mut m);
+            assert_eq!(status, SPIR_COMPUTATION_SUCCESS);
+            assert_eq!(m, n);
+            assert_eq!((buf[0], buf[n as usize]), (0.0, 1.0));
+            assert!(buf.windows(2).all(|w| w[0] < w[1]));
+        }
 
         spir_kernel_release(kernel);
     }

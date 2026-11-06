@@ -12,6 +12,7 @@ mod macros;
 mod basis;
 mod cpu;
 mod dlr;
+mod ffi;
 mod funcs;
 mod gemm;
 mod kernel;
